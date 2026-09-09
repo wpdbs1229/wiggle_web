@@ -45,7 +45,7 @@ const praise = [
   // 형태만 의문이고 내용은 평가인 문장.
   "그림이 참 좋네?",
   // 평가자는 열거가 아니라 이 제품이 아는 화자 집합이다.
-  "그리미는 네 그림을 좋아해.",
+  "몽그리는 네 그림을 좋아해.",
   "선생님도 네 그림을 좋아해.",
   "선생님께서는 네 그림을 좋아해.",
   "난 네 그림을 좋아해.",
@@ -202,7 +202,7 @@ test("praise reaches neither the child coaching payload nor the teacher draft", 
       choices: [{ emoji, label: "하나", answer: "하나를 그렸어요" }, { emoji: "🌳", label: "나무", answer: "나무를 그렸어요" }],
     })), `유효한 이모지가 막히면 502가 난다: ${emoji}`);
   }
-  for (const text of ["그리미는 네 그림을 좋아해.", "선생님도 네 그림을 좋아해.", "난 네 그림을 좋아해.", "그림이 참 좋네?"]) {
+  for (const text of ["몽그리는 네 그림을 좋아해.", "선생님도 네 그림을 좋아해.", "난 네 그림을 좋아해.", "그림이 참 좋네?"]) {
     assert.equal(validateStudentCoaching(studentPayload({ growth_event: text })), null, `학생 코칭으로 새면 안 됨: ${text}`);
     assert.equal(validateTeacherDraft({ body: "다음에는 배경을 더 그려볼까?", observation: text, next_action: "선을 하나 더 그려 보게 해 주세요." }), null, `교사 초안으로 새면 안 됨: ${text}`);
   }

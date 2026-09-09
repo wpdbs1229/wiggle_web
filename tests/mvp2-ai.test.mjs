@@ -149,6 +149,13 @@ test("prompts and routes preserve child agency, teacher approval and structured 
   assert.match(studentRoute, /studentFromRequest/); assert.match(studentRoute, /WHERE id = \? AND student_id = \?/); assert.match(studentRoute, /recordCoachingBefore/); assert.match(coachingStore, /coaching_before/); assert.match(coachingStore, /coaching_after/); assert.match(studentRoute, /recentEvents/); assert.match(studentRoute, /rateLimit/); assert.match(studentRoute, /finishGuide/);
   assert.match(teacherRoute, /requireTeacher/); assert.match(teacherRoute, /c\.teacher_id = \?/); assert.match(teacherMessages, /status = 'draft'/); assert.match(teacherMessages, /status = 'approved'/); assert.match(teacherMessages, /INSERT INTO teacher_messages/); assert.match(teacherRoute, /approveTeacherDraftMessage/);
   assert.match(schema, /coachingEventDetails/); assert.match(schema, /teacherCoachingDrafts/); assert.match(runtime, /coaching_event_details/); assert.match(runtime, /teacher_coaching_drafts/);
-  assert.match(studio, /그리미 부르기/); assert.match(studio, /그냥 내 마음대로 그릴래/); assert.match(studio, /TimelapsePlayer/); assert.match(teacherUi, /수정한 뒤 승인해서 보내기/);
+  assert.match(studio, /몽그리 부르기/); assert.match(studio, /그냥 내 마음대로 그릴래/); assert.match(studio, /TimelapsePlayer/); assert.match(teacherUi, /수정한 뒤 승인해서 보내기/);
   assert.match(renderer, /op\.type === "fill"/); assert.match(renderer, /op\.type === "shape"/); assert.match(renderer, /op\.type === "sticker"/); assert.match(timelapse, /setInterval/); assert.match(timelapse, /clearInterval/); assert.doesNotMatch(timelapse, /document\.ops\.slice\(0, frame\)/);
+});
+
+test("몽그리 단계 가이드는 4단계 자유 창작에서만 열리고 빠른 주제는 2단계 수업 주제를 쓴다", async () => {
+  const studio = await read("../app/components/DrawingStudio.tsx");
+  assert.match(studio, /\{!lesson && !aiGuide && !grimiLoading && \(\s*<div className="guide-request">/);
+  assert.match(studio, /\["friendly-dog", "delivery-bike", "moon-rocket", "happy-dinosaur"\]\s*\.map\(\(slug\) => lessonBySlug\(slug\)\)/);
+  assert.match(studio, /<button className="text-button free-exit" onClick=\{dismissGrimi\}>\s*그냥 내 마음대로 그릴래/);
 });

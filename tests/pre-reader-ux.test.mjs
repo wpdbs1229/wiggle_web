@@ -75,7 +75,7 @@ test("drawing, navigation and reflection retain familiar visual actions when tex
   assert.match(studio, /⬅️ 이전/);
   assert.match(studio, /"➡️ 다음"/);
   assert.match(studio, /QUICK_DRAW_TOPICS/);
-  assert.match(studio, /🚀/);
+  assert.match(studio, /"moon-rocket"/); // 빠른 주제 이모지는 2단계 수업 데이터에서 온다
   assert.match(studio, /favoritePartChoices/);
   assert.match(studio, /FAVORITE_REASON_CHOICES/);
   assert.match(studio, /className="reflection-choice-grid"/);

@@ -326,7 +326,7 @@ export const CURRICULUM_STAGES = [
   { stage: 1 as const, mode: "practice" as const, title: "선·도형 기초", description: "선과 도형을 손에 익혀요.", path: "/student/practice", emoji: "✏️" },
   { stage: 2 as const, mode: "guided" as const, title: "따라 그리기", description: "한 번에 한 단계씩 그려요.", path: "/student/guided", emoji: "🐶" },
   { stage: 3 as const, mode: "observe" as const, title: "관찰 그리기", description: "특징을 찾아 내 생각을 더해요.", path: "/student/observe", emoji: "🔎" },
-  { stage: 4 as const, mode: "free" as const, title: "AI 가이드 자유 창작", description: "필요할 때만 그리미를 불러요.", path: "/student/draw/new?mode=free", emoji: "✨" },
+  { stage: 4 as const, mode: "free" as const, title: "AI 가이드 자유 창작", description: "필요할 때만 몽그리를 불러요.", path: "/student/draw/new?mode=free", emoji: "✨" },
 ];
 
 export const DEFAULT_ACTIVITY_KEY = `lesson:${LESSONS[0].slug}`;

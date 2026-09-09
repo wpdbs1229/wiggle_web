@@ -13,7 +13,7 @@ export type DrawingGuide = { topic: string; steps: GuideStep[] };
 export type TeacherCoachingDraft = { body: string; observation: string; nextAction: string };
 export type OpenAIKind = "student_coaching" | "drawing_guide" | "teacher_draft";
 
-export const STUDENT_COACHING_INSTRUCTIONS = `너는 초등학교 1~2학년 아이를 돕는 그림 코치 '그리미'다.
+export const STUDENT_COACHING_INSTRUCTIONS = `너는 초등학교 1~2학년 아이를 돕는 그림 코치 '몽그리'다.
 아이가 버튼으로 도움을 요청한 이번 한 번에만 답한다. 자동으로 끼어들지 않는다.
 그림을 대신 완성하거나 원본 선을 수정한다고 말하지 않는다. 점수, 순위, 칭찬 판정, 평가, 재능 진단, 실패 표현을 쓰지 않는다.
 멋진 그림, 훌륭한 창의력, 잘 그렸어요, 예쁜 그림, 천재, 재능, 소질 같은 판정과 정답, 반드시 따라, exact answer, follow 같은 강요 표현을 어느 필드에도 쓰지 않는다.
@@ -83,7 +83,7 @@ const forbiddenMeaningPatterns = [
   /(?:\d{1,3}\s*점|점수|등수|순위|평가|채점|합격|불합격)/iu,
   /(?:틀렸|틀린|오답|정답|실패|못했|못\s*그렸)/iu,
   /(?:원본(?:의)?\s*(?:선|그림)?.{0,12}(?:고쳐|수정|바꿔|지워)|(?:고쳐|수정|바꿔|지워).{0,12}원본)/iu,
-  /(?:(?:대신|내가|그리미가|AI가).{0,16}(?:그려|완성)|(?:그려|완성).{0,16}(?:줄게|드릴게|해\s*줄게|해\s*드릴게))/iu,
+  /(?:(?:대신|내가|몽그리가|AI가).{0,16}(?:그려|완성)|(?:그려|완성).{0,16}(?:줄게|드릴게|해\s*줄게|해\s*드릴게))/iu,
   /(?:(?:반드시|꼭|그대로|똑같이|정확히).{0,14}(?:따라|베껴|그려)|(?:따라|베껴).{0,14}(?:반드시|꼭|그대로|똑같이|정확히))/iu,
   /\b(?:exact\s*answer|correct\s*answer|wrong\s*answer|must\s*follow|follow\s*exactly|copy\s*exactly|follow)\b/iu,
   /\b(?:praise|praised|praising|compliment|compliments|complimented|complimenting|evaluate|evaluates|evaluated|evaluating|evaluation)\b/iu,
@@ -111,10 +111,10 @@ const EMPHASIS = String.raw`(?:정말|진짜|참|너무|아주|매우)?\s*`;
 // "아이가 그림을"의 조사 '가'가 중간말로 잡혀 제3자 관찰까지 막힌다.
 const OWNER = String.raw`(?:[가-힣]{1,10}의|[가-힣]{1,10}[가이]\s+[가-힣]{1,8}\s+(?=그림|작품)|그린|(?<![가-힣])(?:네|니|너|너의|당신의|이|그|저))`;
 // 평가자는 열린 어휘가 아니라 이 제품이 아는 화자 집합이다 — 아이에게 말하는 주체.
-// 조사·존칭·축약형이 붙어도 같은 화자다("난", "선생님께서는", "그리미는").
+// 조사·존칭·축약형이 붙어도 같은 화자다("난", "선생님께서는", "몽그리는").
 // "저"는 1인칭이자 지시어라 맨몸으로 두면 "저 색깔을 좋아해서 골랐어?"까지 막는다.
 // 조사가 붙어 1인칭이 분명할 때만 평가자로 본다.
-const EVALUATOR = String.raw`(?:(?:우리\s*선생님|선생님|그리미|위글|wiggle|ai|나|난|내|제)(?:가|는|은|도|께서는|께서도|께서)?|저[는도])(?=\s)`;
+const EVALUATOR = String.raw`(?:(?:우리\s*선생님|선생님|몽그리|위글|wiggle|ai|나|난|내|제)(?:가|는|은|도|께서는|께서도|께서)?|저[는도])(?=\s)`;
 const workApprovalPatterns = [
   // ① 작품 자체를 좋다고 평하는 말: "그림이 참 좋네", "네 그림 색이 좋다"
   //    맨몸의 "색"은 아이의 색 선호("빨간색이 좋아요")라서 작품 문맥이 있을 때만 본다.
@@ -289,7 +289,7 @@ function outputText(response: Record<string, unknown>) {
     const item = record(rawItem); if (!item || !Array.isArray(item.content)) continue;
     for (const rawPart of item.content) {
       const part = record(rawPart); if (!part) continue;
-      if (part.type === "refusal" || typeof part.refusal === "string") throw new AIServiceError("AI_REFUSAL", "그리미가 이번 그림에는 답하기 어려워요. 선생님과 함께 다시 해 봐요.", 422);
+      if (part.type === "refusal" || typeof part.refusal === "string") throw new AIServiceError("AI_REFUSAL", "몽그리가 이번 그림에는 답하기 어려워요. 선생님과 함께 다시 해 봐요.", 422);
       if (part.type === "output_text" && typeof part.text === "string") return part.text;
     }
   }
@@ -307,9 +307,9 @@ export async function requestStructuredOpenAI(options: {
   model?: string;
 }) {
   const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new AIServiceError("AI_CONFIG", "그리미 연결이 아직 준비되지 않았어요.");
+  if (!apiKey) throw new AIServiceError("AI_CONFIG", "몽그리 연결이 아직 준비되지 않았어요.");
   const model = (options.model ?? process.env.OPENAI_MODEL ?? "gpt-5.6-sol").trim();
-  if (!/^[a-zA-Z0-9._-]{3,80}$/.test(model)) throw new AIServiceError("AI_CONFIG", "그리미 모델 설정을 확인해 주세요.");
+  if (!/^[a-zA-Z0-9._-]{3,80}$/.test(model)) throw new AIServiceError("AI_CONFIG", "몽그리 모델 설정을 확인해 주세요.");
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
   const requestBody = {
     model,
@@ -332,20 +332,20 @@ export async function requestStructuredOpenAI(options: {
       signal: controller.signal,
     });
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) throw new AIServiceError("AI_CONFIG", "그리미 연결 설정을 확인해 주세요.");
-      if (response.status === 429) throw new AIServiceError("AI_BUSY", "그리미가 잠깐 바빠요. 조금 뒤에 다시 불러 주세요.", 429);
-      throw new AIServiceError("AI_UNAVAILABLE", "그리미가 잠시 쉬고 있어요. 조금 뒤에 다시 불러 주세요.");
+      if (response.status === 401 || response.status === 403) throw new AIServiceError("AI_CONFIG", "몽그리 연결 설정을 확인해 주세요.");
+      if (response.status === 429) throw new AIServiceError("AI_BUSY", "몽그리가 잠깐 바빠요. 조금 뒤에 다시 불러 주세요.", 429);
+      throw new AIServiceError("AI_UNAVAILABLE", "몽그리가 잠시 쉬고 있어요. 조금 뒤에 다시 불러 주세요.");
     }
     const responseBody = await response.json() as Record<string, unknown>;
-    const text = outputText(responseBody); if (!text) throw new AIServiceError("AI_RESPONSE_INVALID", "그리미의 답을 확인하지 못했어요.", 502);
-    let parsed: unknown; try { parsed = JSON.parse(text); } catch { throw new AIServiceError("AI_RESPONSE_INVALID", "그리미의 답을 확인하지 못했어요.", 502); }
+    const text = outputText(responseBody); if (!text) throw new AIServiceError("AI_RESPONSE_INVALID", "몽그리의 답을 확인하지 못했어요.", 502);
+    let parsed: unknown; try { parsed = JSON.parse(text); } catch { throw new AIServiceError("AI_RESPONSE_INVALID", "몽그리의 답을 확인하지 못했어요.", 502); }
     const value = options.kind === "student_coaching" ? validateStudentCoaching(parsed)
       : options.kind === "drawing_guide" ? validateDrawingGuide(parsed) : validateTeacherDraft(parsed);
-    if (!value) throw new AIServiceError("AI_RESPONSE_INVALID", "그리미의 답을 확인하지 못했어요.", 502);
+    if (!value) throw new AIServiceError("AI_RESPONSE_INVALID", "몽그리의 답을 확인하지 못했어요.", 502);
     return { value, model, schemaValid: true as const };
   } catch (error) {
     if (error instanceof AIServiceError) throw error;
-    if (controller.signal.aborted) throw new AIServiceError("AI_TIMEOUT", "그리미의 답이 늦어지고 있어요. 다시 불러 주세요.", 504);
-    throw new AIServiceError("AI_UNAVAILABLE", "그리미가 잠시 쉬고 있어요. 조금 뒤에 다시 불러 주세요.");
+    if (controller.signal.aborted) throw new AIServiceError("AI_TIMEOUT", "몽그리의 답이 늦어지고 있어요. 다시 불러 주세요.", 504);
+    throw new AIServiceError("AI_UNAVAILABLE", "몽그리가 잠시 쉬고 있어요. 조금 뒤에 다시 불러 주세요.");
   } finally { clearTimeout(timeout); }
 }

@@ -96,14 +96,14 @@ export function StudentHome() {
         <div className="teacher-activity-copy">
           <p className="teacher-activity-pill">⭐ 선생님이 선택한 오늘 활동</p>
           <h2 id="today-activity-title">{data.currentActivityLabel}</h2>
-          <p>{teacherLesson?.description ?? "내 생각을 그리고, 필요할 때 그리미를 불러요."}</p>
+          <p>{teacherLesson?.description ?? "내 생각을 그리고, 필요할 때 몽그리를 불러요."}</p>
           <a className="button primary child-primary-action" href={teacherActivityPath}><span aria-hidden="true">▶️</span>{teacherDone ? "한 번 더 그리기" : teacherArtwork ? "이어 그리기" : "그림 시작하기"}</a>
         </div>
       </div>
       <div className="book-binding" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <i key={index} />)}</div>
       <div className="book-page book-visual-page">
         <span className="book-tape" aria-hidden="true" />
-        <div className="teacher-activity-visual">{teacherLesson ? <LessonReference lesson={teacherLesson} /> : <img src="/brand/grimi-mascot.png" alt="자유 창작을 안내하는 그리미" />}</div>
+        <div className="teacher-activity-visual">{teacherLesson ? <LessonReference lesson={teacherLesson} /> : <img src="/brand/grimi-mascot.png" alt="자유 창작을 안내하는 몽그리" />}</div>
         <div className="teacher-pencil-progress" aria-label={`오늘 활동 ${teacherStep}/${teacherStepTotal}단계, ${teacherProgress}% 진행`}>
           <div aria-hidden="true">{Array.from({ length: teacherStepTotal }, (_, index) => <span className={index < teacherStep ? "done" : ""} key={index}>✏️</span>)}</div>
           <b>{teacherStep}/{teacherStepTotal}</b>

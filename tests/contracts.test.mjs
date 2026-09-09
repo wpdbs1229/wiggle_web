@@ -36,7 +36,7 @@ test("keeps canvas contracts and guide data separate", async () => {
   const [model, studioRaw, lessons, css, catalog] = await Promise.all([read("../lib/drawing-model.ts"), read("../app/components/DrawingStudio.tsx"), read("../lib/lesson-content.ts"), read("../app/globals.css"), import("../lib/lesson-content.ts")]);
   const studio = compactSource(studioRaw);
   assert.match(model, /DOCUMENT_SIZE = 1024/); assert.match(model, /schemaVersion/); assert.match(model, /rendererVersion/); assert.match(model, /clientOpId/); assert.match(model, /STICKER_ALLOWLIST/);
-  // 썸네일·완성 PNG는 문서 기반(documentImage), 그리미 전송 이미지는 화면 기반(imageData 1024).
+  // 썸네일·완성 PNG는 문서 기반(documentImage), 몽그리 전송 이미지는 화면 기반(imageData 1024).
   assert.match(studio, />= 2\.5/); assert.match(studio, /guideRef/); assert.match(studio, /documentImage\([^)]+, 256\)/); assert.match(studio, /imageData\(canvasRef\.current, 1024\)/);
   assert.match(studio, /strokeStyle = "#087EA8"[\s\S]*globalAlpha = 0\.92[\s\S]*lineWidth = 9[\s\S]*setLineDash\(\[20, 14\]\)/);
   assert.match(studio, /item\.step === lessonStep \+ 1/); assert.doesNotMatch(studio, /item\.step <= lessonStep \+ 1/);

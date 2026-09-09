@@ -13,7 +13,7 @@ type DemoSession = {
 };
 
 type ArtworkSummary = { id: string; title: string; status: string };
-const DEMO_ARTWORK_TITLE = "그리미와 떠나는 상상 여행 · 완성본";
+const DEMO_ARTWORK_TITLE = "몽그리와 떠나는 상상 여행 · 완성본";
 
 async function demoDrawingPng() {
   const image = new Image();
@@ -34,7 +34,7 @@ async function demoDrawingPng() {
   const width = image.naturalWidth * scale; const height = image.naturalHeight * scale;
   context.drawImage(image, (1024 - width) / 2, 118 + (520 - height) / 2, width, height);
   context.fillStyle = "#24324A"; context.textAlign = "center";
-  context.font = "700 54px sans-serif"; context.fillText("그리미와 떠나는 상상 여행", 512, 82);
+  context.font = "700 54px sans-serif"; context.fillText("몽그리와 떠나는 상상 여행", 512, 82);
   return canvas.toDataURL("image/png");
 }
 
@@ -47,7 +47,7 @@ async function ensureCompletedArtwork(profile: ActiveDeviceProfile) {
 
   const created = await studentFetch("/api/artworks", {
     method: "POST",
-    body: JSON.stringify({ learningMode: "free", title: DEMO_ARTWORK_TITLE, topic: "상상 친구", intent: "그리미와 함께 새로운 이야기를 만들고 싶어요." }),
+    body: JSON.stringify({ learningMode: "free", title: DEMO_ARTWORK_TITLE, topic: "상상 친구", intent: "몽그리와 함께 새로운 이야기를 만들고 싶어요." }),
   }, profile);
   const createdData = await created.json() as { artwork?: ArtworkSummary; error?: string };
   if (!created.ok || !createdData.artwork) throw new Error(createdData.error ?? "체험 그림을 만들지 못했어요.");
@@ -71,9 +71,9 @@ async function ensureCompletedArtwork(profile: ActiveDeviceProfile) {
       complete: true,
       finalImageKey: uploadedData.key,
       reflection: {
-        favoritePart: "그리미와 색이 만나는 부분",
+        favoritePart: "몽그리와 색이 만나는 부분",
         favoriteReason: "새로운 이야기가 시작될 것 같아서 마음에 들어요.",
-        storyText: "그리미는 오늘 처음 보는 책 속으로 여행을 떠났어요.",
+        storyText: "몽그리는 오늘 처음 보는 책 속으로 여행을 떠났어요.",
       },
     }),
   }, profile);
@@ -104,7 +104,7 @@ export function StorybookDemoBootstrap() {
         storeProfile(profile);
         setStatus("완성한 그림을 그림책으로 옮기고 있어요…");
         const artwork = await ensureCompletedArtwork(profile);
-        const response = await studentFetch("/api/storybooks", { method: "POST", body: JSON.stringify({ format: "landscape", artworkId: artwork.id, title: "그리미의 상상 그림책" }) }, profile);
+        const response = await studentFetch("/api/storybooks", { method: "POST", body: JSON.stringify({ format: "landscape", artworkId: artwork.id, title: "몽그리의 상상 그림책" }) }, profile);
         const data = await response.json() as { storybook?: { id: string }; error?: string };
         if (!response.ok || !data.storybook) throw new Error(data.error ?? "체험 그림책을 만들지 못했어요.");
         location.replace(`/student/books/${data.storybook.id}`);

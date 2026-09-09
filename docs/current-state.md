@@ -1,6 +1,6 @@
 # Wiggle Web 현재 상태
 
-> 마지막 갱신: 2026-08-23
+> 마지막 갱신: 2026-09-09
 > 목적: 긴 대화가 압축되거나 담당 AI가 바뀌어도 실제 구현·검증·배포 상태를 잃지 않기 위한 기준 문서
 
 ## 상태 기준
@@ -207,3 +207,11 @@
 3. 요청이 확정 결정인지, 검토 의견인지 구분한다.
 4. 미결정 항목을 임의로 제품 정책으로 확정하지 않는다.
 5. 구현·검증·배포 상태가 바뀌면 이 문서를 함께 갱신한다.
+
+## 2026-09-09 몽그리 역할 정리 (`claude/mongri-role`, 로컬 검증)
+
+- 이름 `그리미` → `몽그리`: 코드·테스트·스크립트·README 문자열 전부 교체. CSS 클래스(`grimi-*`)·상태 변수·마스코트 파일명(`grimi-mascot.png`)은 내부 식별자라 유지. 이력 문서(`docs/ux-market-audit`, `flutter-adoption-audit`, `claude-handoff-2026-07-27`)는 당시 기록이라 손대지 않음.
+- `단계 가이드 만들기`는 `!lesson`(4단계 자유 창작)에서만 렌더. 1~3단계 수업 중 몽그리 패널은 그림 질문 코칭만 제공.
+- 빠른 주제 칩은 `lessonBySlug`로 2단계 수업 4개(friendly-dog·delivery-bike·moon-rocket·happy-dinosaur)의 이모지·주제를 사용.
+- 검증: typecheck·lint 통과, `npm test` 287/290 — 실패 3 중 2는 내 새 테스트·기존 🚀 단언 수정으로 해결, 나머지 `pbkdf2-runtime`은 Node 22.13에 `registerHooks`가 없어 생기는 환경 실패(변경 무관). 이 맥에서는 `NODE_OPTIONS=--experimental-strip-types`가 있어야 `.ts` 로딩이 됨(Node 22.18+면 불필요).
+- 브라우저 실측(`check:browser`)은 이 세션에서 미실행.

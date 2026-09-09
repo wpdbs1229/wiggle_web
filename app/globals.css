@@ -871,7 +871,7 @@ code,pre { max-width:100%; overflow-x:auto; white-space:nowrap; word-break:norma
   .tool-panel .history-row button { min-width:0; min-height:44px; }
   .tool-panel .clear-all-button { width:100%; min-height:44px; margin-top:4px; font-size:12px; }
 }
-/* 그리미 패널은 작은 화면에서 바텀시트가 된다. 좁은 컬럼 안 중첩 스크롤에 두면
+/* 몽그리 패널은 작은 화면에서 바텀시트가 된다. 좁은 컬럼 안 중첩 스크롤에 두면
    질문·선택지·다음 행동·확인 버튼이 접힌 영역 아래로 숨는다. */
 @media (max-width:720px), (min-width:721px) and (max-width:1024px) and (orientation:portrait), (max-width:900px) and (max-height:500px) and (orientation:landscape) {
   .studio-body>.grimi-panel {

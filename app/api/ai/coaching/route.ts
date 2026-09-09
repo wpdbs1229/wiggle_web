@@ -42,7 +42,7 @@ async function recentContext(artworkId: string) {
 
 function aiError(error: unknown) {
   if (error instanceof AIServiceError) return noStoreJson({ error: error.message, code: error.code }, { status: error.status });
-  return noStoreJson({ error: "그리미가 잠시 쉬고 있어요. 조금 뒤에 다시 불러 주세요.", code: "AI_UNAVAILABLE" }, { status: 503 });
+  return noStoreJson({ error: "몽그리가 잠시 쉬고 있어요. 조금 뒤에 다시 불러 주세요.", code: "AI_UNAVAILABLE" }, { status: 503 });
 }
 
 export async function POST(request: Request) {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   const payload = await limitedPayload(request); if (!payload) return jsonError("그림 요청이 너무 커요.", 413);
   const action = cleanText(payload.action, 24); const artworkId = cleanText(payload.artworkId, 80);
   const artwork = await ownedArtwork(artworkId, student.id); if (!artwork) return jsonError("내 그림이 아니거나 찾을 수 없어요.", 404);
-  if (artwork.status === "complete") return jsonError("완성한 작품에서는 새 사본으로 그리미를 불러 주세요.", 409);
+  if (artwork.status === "complete") return jsonError("완성한 작품에서는 새 사본으로 몽그리를 불러 주세요.", 409);
   const db = bindings().DB;
 
   if (action === "dismiss") {
@@ -82,13 +82,13 @@ export async function POST(request: Request) {
     return noStoreJson(result);
   }
 
-  if (action !== "ask" && action !== "guide") return jsonError("지원하지 않는 그리미 요청이에요.");
+  if (action !== "ask" && action !== "guide") return jsonError("지원하지 않는 몽그리 요청이에요.");
   const requestId = cleanText(payload.requestId, 80);
-  if (!/^coaching_[a-zA-Z0-9_-]{12,70}$/.test(requestId)) return jsonError("그리미 요청 번호를 확인해 주세요.");
+  if (!/^coaching_[a-zA-Z0-9_-]{12,70}$/.test(requestId)) return jsonError("몽그리 요청 번호를 확인해 주세요.");
   const existingRequest = await db.prepare(`SELECT e.artwork_id AS artworkId, a.student_id AS studentId FROM coaching_events e JOIN artworks a ON a.id = e.artwork_id WHERE e.id = ?`).bind(requestId).first<{ artworkId: string; studentId: string }>();
-  if (existingRequest && (existingRequest.artworkId !== artworkId || existingRequest.studentId !== student.id)) return jsonError("그리미 요청을 찾을 수 없어요.", 404);
-  if (existingRequest) return noStoreJson({ error: "이미 처리한 그리미 요청이에요.", code: "COACHING_ALREADY_HANDLED" }, { status: 409 });
-  if (!(await rateLimit(`ai-create:${student.id}`, 8, 10 * 60))) return jsonError("그리미를 많이 불렀어요. 잠깐 뒤에 다시 불러 주세요.", 429);
+  if (existingRequest && (existingRequest.artworkId !== artworkId || existingRequest.studentId !== student.id)) return jsonError("몽그리 요청을 찾을 수 없어요.", 404);
+  if (existingRequest) return noStoreJson({ error: "이미 처리한 몽그리 요청이에요.", code: "COACHING_ALREADY_HANDLED" }, { status: 409 });
+  if (!(await rateLimit(`ai-create:${student.id}`, 8, 10 * 60))) return jsonError("몽그리를 많이 불렀어요. 잠깐 뒤에 다시 불러 주세요.", 429);
   const expectedRevision = Number(payload.expectedRevision); const document = validateDrawDocument(payload.document); const image = parseImageDataUrl(payload.imageDataUrl);
   if (!Number.isInteger(expectedRevision) || expectedRevision !== artwork.revision) return noStoreJson({ error: "그림을 먼저 저장한 뒤 다시 불러 주세요.", code: "REVISION_CONFLICT", serverRevision: artwork.revision }, { status: 409 });
   if (!document || JSON.stringify(document).length > 1_250_000 || !image) return jsonError("현재 그림을 확인하지 못했어요.", 413);
@@ -115,9 +115,9 @@ export async function POST(request: Request) {
       growthEvent: coaching?.growthEvent ?? null, currentStep: artwork.currentStep,
     });
     if (!saved.ok && saved.reason === "not_found") return jsonError("내 그림이 아니거나 찾을 수 없어요.", 404);
-    if (!saved.ok && saved.reason === "already_recorded") return noStoreJson({ error: "이미 처리한 그리미 요청이에요.", code: "COACHING_ALREADY_HANDLED" }, { status: 409 });
+    if (!saved.ok && saved.reason === "already_recorded") return noStoreJson({ error: "이미 처리한 몽그리 요청이에요.", code: "COACHING_ALREADY_HANDLED" }, { status: 409 });
     if (!saved.ok && (saved.reason === "revision_conflict" || saved.reason === "artwork_complete")) return noStoreJson({ error: "그림이 바뀌었어요. 다시 불러 주세요.", code: "REVISION_CONFLICT", serverRevision: saved.serverRevision }, { status: 409 });
-    if (!saved.ok) return noStoreJson({ error: "그리미 과정을 저장하지 못했어요.", code: "COACHING_SAVE_FAILED" }, { status: 503 });
+    if (!saved.ok) return noStoreJson({ error: "몽그리 과정을 저장하지 못했어요.", code: "COACHING_SAVE_FAILED" }, { status: 503 });
     return noStoreJson({ eventId: saved.eventId, coaching, guide, meta: { model: result.model, schemaValid: result.schemaValid } }, { status: 201 });
   } catch (error) {
     return aiError(error);
