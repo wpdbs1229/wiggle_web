@@ -14,7 +14,7 @@ test("teacher QR and copied entry address use the short rotating class code whil
   assert.doesNotMatch(teacher, /location\.origin\}\/join\/\$\{classroomData\.classroom\.joinToken/);
   // 복사는 lib/copy-text 한 경로로만 간다. 옛 navigator.clipboard?.writeText 형태는
   // 비보안 맥락에서 조용히 아무 일도 하지 않아 교사가 눌러도 반응이 없었다(2026-09-13).
-  assert.match(teacher, /copyAndNotify\(joinUrl, "입장 주소"\)/);
+  assert.match(teacher, /copyAndNotify\(joinUrl, "입장 주소", "qr-join"\)/);
   assert.doesNotMatch(teacher, /navigator\.clipboard/);
   assert.match(teacher, /classCode = classroomData\?\.classroom\.classCode/);
   assert.match(studentApi, /class_code = \? OR join_token = \?/);

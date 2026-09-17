@@ -77,3 +77,6 @@ body:has(.teacher-workspace){background:#fff}
 .tcw-skel-caption{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
 .tcw-skel-caption .tcw-skel{width:52%;height:22px}
 .tcw-skel-caption .tcw-skel-pill{width:20%;height:24px;border-radius:999px}
+
+/* 복사 성공(2026-09-17): 아이콘 단추는 복사 아이콘이 체크로 바뀐다. */
+.trs-copied { color:#2e9e5b; }
