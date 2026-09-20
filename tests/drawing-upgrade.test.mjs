@@ -151,3 +151,19 @@ test("the paper always covers its frame, and an overflowing paper pans at 1x wit
   assert.equal(clampView({ scale: 1, x: 50, y: 20 }, ...box).x, 0);
   assert.equal(clampView({ scale: 1, x: 50, y: 20 }, ...box).y, 0);
 });
+
+test("넓은 도화지는 1/span까지 축소되고, 그 아래로는 내려가지 않는다", () => {
+  // 100%에서 종이는 틀의 3배다(1180×754 화면 → 3540×2262 종이).
+  const box = [1180, 754, 3540, 2262];
+  const limits = { min: 1 / 3, max: 4 };
+  // 끝까지 축소하면 종이 전체가 틀에 딱 맞는다.
+  const out = clampView({ scale: 0.01, x: 0, y: 0 }, ...box, limits);
+  assert.ok(Math.abs(out.scale - 1 / 3) < 1e-9, `축소 하한: ${out.scale}`);
+  assert.equal(Math.round(3540 * out.scale), 1180);
+  // 한계를 주지 않으면 예전처럼 1배 아래로 내려가지 않는다(옛 작품 보호).
+  assert.equal(clampView({ scale: 0.01, x: 0, y: 0 }, ...box).scale, 1);
+  // 확대 상한은 그대로 4배, 이동은 종이 밖을 보여 주지 않는다.
+  const zoomed = zoomView({ scale: 1, x: 0, y: 0 }, 99, { x: 590, y: 377 }, ...box, limits);
+  assert.equal(zoomed.scale, 4);
+  assert.ok(zoomed.x <= 0 && zoomed.x >= 1180 - 3540 * 4, "가로 이동이 종이 안에 머문다");
+});

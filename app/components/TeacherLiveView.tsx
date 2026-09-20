@@ -2,7 +2,7 @@
 
 import { PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { renderDrawDocument, resetDrawingCanvas } from "@/lib/draw-renderer";
-import { documentHeight, type DrawDocument } from "@/lib/drawing-model";
+import { documentHeight, documentSpan, type DrawDocument } from "@/lib/drawing-model";
 import { drawMarkStrokes, MARK_ANSWER_LABEL, MARK_MAX_POINTS_PER_STROKE, MARK_MAX_STROKES, MARK_NOTE_MAX, type MarkAnswer, type MarkStroke } from "@/lib/teacher-marks";
 
 type LiveArtwork = { id: string; title: string; status: string; revision: number; updatedAt: string; document: DrawDocument };
@@ -64,6 +64,7 @@ export function TeacherLiveView({ classroomId, studentId, nickname, onPost }: {
   }, [load]);
 
   const docHeight = artwork ? documentHeight(artwork.document) : 640;
+  const markUnitScale = artwork ? documentSpan(artwork.document) : 1;
 
   // 아이 그림: 저장 번호가 바뀔 때만 다시 그린다(3초마다 같은 그림을 다시 그리지 않는다).
   useEffect(() => {
@@ -89,9 +90,10 @@ export function TeacherLiveView({ classroomId, studentId, nickname, onPost }: {
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
     // 이미 보낸(아이가 아직 답하지 않은) 표시는 옅게, 지금 그리는 표시는 진하게.
-    if (openMark) drawMarkStrokes(context, openMark.strokes, 1024, docHeight, 0.35);
-    drawMarkStrokes(context, drawingRef.current ? [...draft, drawingRef.current] : draft, 1024, docHeight);
-  }, [docHeight, draft, openMark]);
+    // 넓은 도화지(span)에서는 아이 화면과 같은 굵기로 보이도록 도화지 단위 굵기를 함께 키운다.
+    if (openMark) drawMarkStrokes(context, openMark.strokes, 1024, docHeight, 0.35, markUnitScale);
+    drawMarkStrokes(context, drawingRef.current ? [...draft, drawingRef.current] : draft, 1024, docHeight, 0.9, markUnitScale);
+  }, [docHeight, draft, markUnitScale, openMark]);
   useEffect(() => { redrawMarks(); }, [redrawMarks]);
 
   const canMark = Boolean(artwork && artwork.status !== "complete");

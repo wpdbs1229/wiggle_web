@@ -2,7 +2,7 @@
 
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { activeTextObjects, clampDocumentHeight, DOCUMENT_SIZE, documentHeight, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, normalizeDrawingText, roundUnit, ShapeKind, STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, validateDrawDocument } from "@/lib/drawing-model";
+import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
 import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas } from "@/lib/draw-renderer";
 import { mirrorOp } from "@/lib/symmetry";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
@@ -167,6 +167,19 @@ type LessonStepPrompt = "step-action" | "unfinished-lesson" | null;
 
 function documentPixels(document: Pick<DrawDocument, "height">, width: number) {
   return { width, height: Math.round(width * documentHeight(document) / DOCUMENT_SIZE) };
+}
+
+/* 도화지 래스터는 "화면에 보이는 크기 × 기기 픽셀"에 맞춘다. 예전에는 늘 가로 1024로만 그려서,
+ * 큰 화면이나 확대한 상태에서 3배 가까이 늘여 보여 선이 뭉개졌다(2026-09-20 사용자: "도화지 축소시 픽셀 깨져보이고").
+ * 상한을 두는 이유: 채우기(페인트통)가 이 래스터를 한 픽셀씩 훑고, 되돌리기 스냅숏도 같은 크기로 잡힌다. */
+const MIN_RASTER_WIDTH = 1024;
+const MAX_RASTER_WIDTH = 3072;
+const MAX_RASTER_PIXELS = 9_000_000;
+function rasterWidthFor(displayWidth: number, docHeight: number) {
+  const dpr = typeof window === "undefined" ? 1 : Math.min(3, window.devicePixelRatio || 1);
+  const wanted = Math.max(MIN_RASTER_WIDTH, Math.min(MAX_RASTER_WIDTH, Math.round(displayWidth * dpr)));
+  const byArea = Math.sqrt(MAX_RASTER_PIXELS * DOCUMENT_SIZE / docHeight);
+  return Math.max(MIN_RASTER_WIDTH, Math.round(Math.min(wanted, byArea)));
 }
 
 function renderDocument(canvas: HTMLCanvasElement, document: DrawDocument, width = 1024) {
@@ -431,8 +444,32 @@ function imageData(canvas: HTMLCanvasElement, size: 256 | 1024) {
 // 그리는 중 미리보기 같은 문서 밖 픽셀이 있을 수 있고, 그게 썸네일·완성 PNG에 섞이면 안 된다.
 // (몽그리에 보내는 이미지는 "아이가 지금 보는 화면"이어야 하므로 imageData를 그대로 쓴다.)
 function documentImage(documentValue: DrawDocument, size: 256 | 1024) {
+  const span = documentSpan(documentValue);
+  const bounds = span > 1 ? contentBounds(documentValue) : null;
+  if (!bounds) {
+    const output = document.createElement("canvas");
+    renderDocument(output, documentValue, size);
+    return output.toDataURL("image/png");
+  }
+  /* 넓은 도화지(span>1)는 흰 여백이 대부분이라 도화지 전체를 1024로 줄이면 아이 그림이 1/3 크기로 들어간다.
+   * 그러면 그림책·인쇄에서 뭉개진다. 그래서 그린 칸만 잘라, 같은 파일 크기로 훨씬 촘촘하게 담는다. */
+  const paperWidth = size === 256 ? 256 * span : 1024 * span;
+  const paperHeight = Math.round(paperWidth * documentHeight(documentValue) / DOCUMENT_SIZE);
+  const cropWidth = Math.max(1, Math.round(bounds.width * paperWidth));
+  const cropHeight = Math.max(1, Math.round(bounds.height * paperHeight));
+  // 긴 변을 목표 크기에 맞춘다 — 작은 낙서는 크게, 큰 그림은 한도 안에서.
+  const longest = Math.max(cropWidth, cropHeight);
+  const target = size === 256 ? 256 : 1536;
+  const ratio = Math.min(4, target / longest);
   const output = document.createElement("canvas");
-  renderDocument(output, documentValue, size);
+  output.width = Math.max(1, Math.round(cropWidth * ratio));
+  output.height = Math.max(1, Math.round(cropHeight * ratio));
+  const context = output.getContext("2d");
+  if (!context) return "";
+  const pageSize = { width: Math.round(paperWidth * ratio), height: Math.round(paperHeight * ratio) };
+  context.translate(-Math.round(bounds.x * pageSize.width), -Math.round(bounds.y * pageSize.height));
+  resetDrawingCanvas(context, pageSize);
+  renderDrawDocument(context, documentValue.ops, pageSize);
   return output.toDataURL("image/png");
 }
 
@@ -571,6 +608,8 @@ export function DrawingStudio() {
   const activePoints = useRef(new Map<number, Array<{ x: number; y: number; pressure: number }>>());
   const guideTraceLocksRef = useRef(new Map<number, { traceIndex: number; pointIndex: number }>());
   const wrapRef = useRef<HTMLDivElement>(null);
+  const rasterWidthRef = useRef(MIN_RASTER_WIDTH);
+  const scaleLimitsRef = useRef({ min: 1, max: MAX_SCALE });
   // 틀(도화지가 보이는 자리)과 그 틀을 빈틈 없이 덮는 1배 종이 크기. 확대·이동 계산이 함께 쓴다.
   const [frame, setFrame] = useState({ width: 0, height: 0 });
   const viewBoxRef = useRef<[number, number, number, number]>([1, 1, 1, 1]);
@@ -732,7 +771,7 @@ export function DrawingStudio() {
   }, [createOrLoad]);
   useEffect(() => {
     documentStateRef.current = documentState;
-    if (canvasRef.current) renderDocument(canvasRef.current, documentState);
+    if (canvasRef.current) renderDocument(canvasRef.current, documentState, rasterWidthRef.current);
   }, [documentState]);
   useEffect(() => {
     currentStepRef.current = artwork?.currentStep ?? 0;
@@ -934,6 +973,7 @@ export function DrawingStudio() {
   }, [currentGuideTraces, guideDemoRun, guidePhase, markCurrentGuideSeen]);
   const visibleMark = teacherMark && teacherMark.artworkId === artwork?.id ? teacherMark : null;
   const markDocHeight = documentHeight(documentState);
+  const markSpan = documentSpan(documentState);
   useEffect(() => {
     const canvas = markRef.current;
     if (!canvas) return;
@@ -942,8 +982,8 @@ export function DrawingStudio() {
     const context = canvas.getContext("2d");
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    if (visibleMark) drawMarkStrokes(context, visibleMark.strokes, DOCUMENT_SIZE, markDocHeight);
-  }, [visibleMark, markDocHeight]);
+    if (visibleMark) drawMarkStrokes(context, visibleMark.strokes, DOCUMENT_SIZE, markDocHeight, 0.9, markSpan);
+  }, [visibleMark, markDocHeight, markSpan]);
   async function answerTeacherMark(answer: MarkAnswer) {
     if (!visibleMark) return;
     answeredMarkIds.current.add(visibleMark.id);
@@ -1413,7 +1453,9 @@ export function DrawingStudio() {
     setTextDragPoint(null);
     if (commit && drag.moved && point && current && updateTextObject(current, { points: [point] })) setSaveState("글씨를 옮겼어요");
   }
+  // 화면에서 고르는 굵기는 "100%일 때의 픽셀"이고, 저장은 도화지 단위다(넓은 도화지는 span배).
   const width = studioTool === "eraser" ? eraserWidth : drawWidth;
+  const documentWidthUnits = (screenWidth: number) => toDocumentUnits(screenWidth, documentSpan(documentStateRef.current));
   function hideEraserFootprint() {
     if (eraserFootprintRef.current) eraserFootprintRef.current.hidden = true;
   }
@@ -1444,7 +1486,7 @@ export function DrawingStudio() {
     if (target?.type === "text" && target.textObjectId && target.text && target.textKind && target.fontSize) {
       setTextDraft(target.text);
       setTextKind(target.textKind);
-      setTextSize(target.fontSize);
+      setTextSize(toScreenUnits(target.fontSize, span) as TextSize);
       if (target.color) setColor(target.color);
       setEditingTextObjectId(target.textObjectId);
     } else {
@@ -1460,7 +1502,7 @@ export function DrawingStudio() {
     if (!text) return;
     const editing = editingTextObjectId ? textObjects.find((op) => op.textObjectId === editingTextObjectId) : null;
     if (editing) {
-      updateTextObject(editing, { text, textKind, fontSize: textSize });
+      updateTextObject(editing, { text, textKind, fontSize: documentWidthUnits(textSize) });
       setTextComposerOpen(false);
       setEditingTextObjectId(null);
       setSaveState("글씨를 바꿨어요");
@@ -1549,9 +1591,12 @@ export function DrawingStudio() {
       if (!(width >= 1) || !(height >= 1)) return;
       const next = clampDocumentHeight(DOCUMENT_SIZE * height / width);
       const from = documentHeight(current);
-      if (next === from) return;
+      // 새 작품은 화면 비율에 맞추면서 넓은 도화지(span)를 함께 붙인다 — 100%에서 화면 한 장이고,
+      // 축소하면 그만큼 빈 종이가 더 나타난다(2026-09-20 사용자 결정 2번 안).
+      const needsSpan = !current.ops.length && current.span === undefined;
+      if (next === from && !needsSpan) return;
       if (!current.ops.length) {
-        const fitted = { ...current, height: next };
+        const fitted = { ...current, height: next, span: NEW_DOCUMENT_SPAN };
         documentStateRef.current = fitted;
         setDocumentState(fitted);
         return;
@@ -1586,7 +1631,18 @@ export function DrawingStudio() {
     observer.observe(wrap);
     return () => observer.disconnect();
   }, [artwork?.id]);
-  const paper = coverPaper(frame.width, frame.height, documentHeight(documentState));
+  const span = documentSpan(documentState);
+  const screenPaper = coverPaper(frame.width, frame.height, documentHeight(documentState));
+  // 도화지는 100%에서 화면 span장 너비다. 끝까지 축소하면(1/span) 도화지 전체가 보인다.
+  const paper = { width: screenPaper.width * span, height: screenPaper.height * span };
+  scaleLimitsRef.current = useMemo(() => ({ min: 1 / span, max: MAX_SCALE }), [span]);
+  // 화면에 보이는 도화지 크기(배율 포함)에 맞춰 래스터를 잡는다. 바뀌면 아래 effect가 다시 그린다.
+  const rasterWidth = rasterWidthFor(paper.width * view.scale, documentHeight(documentState));
+  rasterWidthRef.current = rasterWidth;
+  // 배율이 바뀌면 그만큼 더 촘촘한 래스터로 다시 그린다(확대해도 선이 뭉개지지 않게).
+  useEffect(() => {
+    if (canvasRef.current) renderDocument(canvasRef.current, documentStateRef.current, rasterWidth);
+  }, [rasterWidth]);
   viewBoxRef.current = [frame.width || 1, frame.height || 1, paper.width || 1, paper.height || 1];
   // 틀이나 종이 크기가 바뀌면(화면 회전·도화지 늘림) 1배로 돌아가 종이 가운데를 보여 준다.
   useEffect(() => {
@@ -1620,7 +1676,7 @@ export function DrawingStudio() {
   }, [artwork?.id]);
 
   function chooseWidth(next: number) {
-    const value = Math.min(STROKE_WIDTH_MAX, Math.max(STROKE_WIDTH_MIN, Math.round(next)));
+    const value = Math.min(STROKE_WIDTH_SCREEN_MAX, Math.max(STROKE_WIDTH_MIN, Math.round(next)));
     if (studioTool === "eraser") setEraserWidth(value);
     else {
       drawWidthRef.current = value;
@@ -1638,9 +1694,13 @@ export function DrawingStudio() {
     setInputMode("finger");
   }
   // 1배. 종이가 틀보다 길면 가운데가 보이게 둔다(그림은 늘릴 때 가운데에 놓인다).
-  function fitView() {
+  function fitView(scale = 1) {
     const [frameWidth, frameHeight, paperWidth, paperHeight] = viewBoxRef.current;
-    return clampView({ scale: 1, x: (frameWidth - paperWidth) / 2, y: (frameHeight - paperHeight) / 2 }, frameWidth, frameHeight, paperWidth, paperHeight);
+    const bounds = contentBounds(documentStateRef.current);
+    const center = bounds
+      ? { x: (bounds.x + bounds.width / 2) * paperWidth * scale, y: (bounds.y + bounds.height / 2) * paperHeight * scale }
+      : { x: paperWidth * scale / 2, y: paperHeight * scale / 2 };
+    return clampView({ scale, x: frameWidth / 2 - center.x, y: frameHeight / 2 - center.y }, frameWidth, frameHeight, paperWidth, paperHeight, scaleLimitsRef.current);
   }
   function resetViewToFit() {
     const next = fitView();
@@ -1652,7 +1712,7 @@ export function DrawingStudio() {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const rect = wrap.getBoundingClientRect();
-    const next = zoomView(viewRef.current, viewRef.current.scale * factor, { x: rect.width / 2, y: rect.height / 2 }, ...viewBoxRef.current);
+    const next = zoomView(viewRef.current, viewRef.current.scale * factor, { x: rect.width / 2, y: rect.height / 2 }, ...viewBoxRef.current, scaleLimitsRef.current);
     viewRef.current = next;
     setView(next);
   }
@@ -1763,7 +1823,7 @@ export function DrawingStudio() {
       shape: shapeKind,
       filled: shapeFilled && shapeKind !== "line" && shapeKind !== "curve",
       color,
-      width: drawWidth,
+      width: documentWidthUnits(drawWidth),
       points: [
         { x: start.x, y: start.y },
         { x: end.x, y: end.y },
@@ -1783,7 +1843,7 @@ export function DrawingStudio() {
       textObjectId,
       text: pending.text,
       textKind: pending.textKind,
-      fontSize: pending.fontSize,
+      fontSize: documentWidthUnits(pending.fontSize),
       color: pending.color,
       points: [clampTextPlacement(point, pending.textKind)],
     };
@@ -1868,7 +1928,7 @@ export function DrawingStudio() {
     shapeDragRef.current = null;
     shapeSnapshotRef.current = null;
     pendingFillRef.current = null;
-    renderDocument(canvas, documentStateRef.current);
+    renderDocument(canvas, documentStateRef.current, rasterWidthRef.current);
   }
   function endStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
     activePoints.current.delete(event.pointerId);
@@ -1877,7 +1937,7 @@ export function DrawingStudio() {
     lastClientRef.current.delete(event.pointerId);
     strokeSnapshotRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    renderDocument(event.currentTarget, documentStateRef.current);
+    renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
   }
   function pointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
     lastStrokeAtRef.current = Date.now();
@@ -1920,7 +1980,7 @@ export function DrawingStudio() {
     if (studioTool === "text") {
       if (pendingText) {
         if (!commitText(first, pendingText)) setSaveState("글씨를 놓지 못했어요. 종이의 저장 공간을 확인해 주세요");
-        else renderDocument(event.currentTarget, documentStateRef.current);
+        else renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
         return;
       }
       const nearest = activeTextObjects(documentStateRef.current.ops)
@@ -1959,7 +2019,7 @@ export function DrawingStudio() {
       if (shapeStartRef.current) previewShape(event.currentTarget, shapeStartRef.current, first);
       return;
     }
-    const meta: StrokeMeta = { tool: studioTool, color, width };
+    const meta: StrokeMeta = { tool: studioTool, color, width: documentWidthUnits(width) };
     let strokeStart = first;
     if ((guidePhase === "practice" || guidePhase === "demo") && lessonGuideAvailable && studioTool !== "eraser" && currentLessonActivity !== "color") {
       const guidedStart = lockGuideTrace(currentGuideTraces, first);
@@ -1995,7 +2055,7 @@ export function DrawingStudio() {
             x: touch.x - rect.left,
             y: touch.y - rect.top,
           });
-          const next = pinchView(viewRef.current, [local(previous), local(other[1])], [local(current), local(other[1])], ...viewBoxRef.current);
+          const next = pinchView(viewRef.current, [local(previous), local(other[1])], [local(current), local(other[1])], ...viewBoxRef.current, scaleLimitsRef.current);
           viewRef.current = next;
           setView(next);
         }
@@ -2084,7 +2144,7 @@ export function DrawingStudio() {
         activePoints.current.set(event.pointerId, [points.at(-1)!]);
         if (strokeSnapshotRef.current) {
           // 분할 커밋 뒤에는 방금 커밋된 획이 포함된 문서로 스냅숏을 새로 뜬다.
-          renderDocument(event.currentTarget, documentStateRef.current);
+          renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
           const context = event.currentTarget.getContext("2d");
           strokeSnapshotRef.current = context ? context.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height) : null;
         }
@@ -2138,7 +2198,7 @@ export function DrawingStudio() {
       lastClientRef.current.delete(event.pointerId);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       if (conflictDraftRef.current) {
-        renderDocument(event.currentTarget, documentStateRef.current);
+        renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
         setSaveState("먼저 보관한 그림을 새 사본으로 저장해 주세요");
         return;
       }
@@ -2148,9 +2208,9 @@ export function DrawingStudio() {
       if (pending) {
         // 2탭 경로의 두 번째 탭. 실패(너무 작음·한도)면 미리보기만 걷어낸다.
         clearShapeStart();
-        if (!commitShape(pending, end)) renderDocument(event.currentTarget, documentStateRef.current);
+        if (!commitShape(pending, end)) renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
       } else if (drag.moved) {
-        if (!commitShape(drag.origin, end)) renderDocument(event.currentTarget, documentStateRef.current);
+        if (!commitShape(drag.origin, end)) renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
       } else {
         // 움직이지 않은 탭 = 2탭 경로의 시작점 찍기. 표식은 캔버스 픽셀이 아니라 DOM 점으로 —
         // 픽셀에 그리면 문서에 없는 초록 점이 썸네일·완성 PNG·AI 전송 이미지에 섞인다.
@@ -2196,7 +2256,7 @@ export function DrawingStudio() {
     if ((guidePhase === "practice" || guidePhase === "demo") && lessonGuideAvailable && meta.tool !== "eraser") setGuidePracticeTried(true);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     // 저장 렌더러의 선 보정 결과를 즉시 보여 줘서, 손을 뗀 뒤 화면과 재접속한 작품이 다르지 않게 한다.
-    renderDocument(event.currentTarget, documentStateRef.current);
+    renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
   }
   // 취소는 폐기다. pointerUp으로 흘리면 취소 이벤트의 (0,0) 좌표로 도형이 커밋되는 사고가 난다.
   // 단 스트로크는 이벤트 좌표가 아니라 누적 점으로 커밋하므로, 그려 둔 만큼 살리는 기존 동작을 유지한다.
@@ -2217,7 +2277,7 @@ export function DrawingStudio() {
       shapeSnapshotRef.current = null;
       lastClientRef.current.delete(event.pointerId);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-      renderDocument(event.currentTarget, documentStateRef.current);
+      renderDocument(event.currentTarget, documentStateRef.current, rasterWidthRef.current);
       return;
     }
     pointerUp(event, false);
@@ -2987,8 +3047,8 @@ export function DrawingStudio() {
                 두 손가락 벌리기·트랙패드도 같은 배율을 쓴다. */}
             <div className="zoom-controls" role="group" aria-label="확대와 축소">
               <button type="button" aria-label="확대" title="확대" disabled={view.scale >= MAX_SCALE - 0.001} onClick={() => zoomBy(1.5)}>+</button>
-              <button type="button" className="zoom-fit" aria-label={`지금 ${Math.round(view.scale * 100)}%, 화면에 맞추기`} title="화면에 맞추기" disabled={view.scale <= 1.001} onClick={resetViewToFit}>{Math.round(view.scale * 100)}%</button>
-              <button type="button" aria-label="축소" title="축소" disabled={view.scale <= 1.001} onClick={() => zoomBy(1 / 1.5)}>−</button>
+              <button type="button" className="zoom-fit" aria-label={`지금 ${Math.round(view.scale * 100)}%, 원래 크기로`} title="원래 크기로" disabled={Math.abs(view.scale - 1) < 0.01} onClick={resetViewToFit}>{Math.round(view.scale * 100)}%</button>
+              <button type="button" aria-label="축소" title="축소" disabled={view.scale <= 1 / span + 0.001} onClick={() => zoomBy(1 / 1.5)}>−</button>
             </div>
           </div>
         </section>
@@ -3038,8 +3098,8 @@ export function DrawingStudio() {
               <div className="dock-width" role="group" aria-label="선 굵기">
                 {/* 끌어서 1픽셀씩 고르고, 손끝으로 맞추기 어려운 마지막 한두 칸은 −·+로 옮긴다. */}
                 <button type="button" aria-label="1픽셀 얇게" disabled={width <= STROKE_WIDTH_MIN} onClick={() => chooseWidth(width - 1)}>−</button>
-                <input type="range" min={STROKE_WIDTH_MIN} max={STROKE_WIDTH_MAX} step={1} value={width} aria-label="선 굵기" aria-valuetext={`${width}픽셀`} onChange={(event) => chooseWidth(Number(event.target.value))} style={{ "--dock-width-fill": `${((width - STROKE_WIDTH_MIN) / (STROKE_WIDTH_MAX - STROKE_WIDTH_MIN)) * 100}%` } as React.CSSProperties} />
-                <button type="button" aria-label="1픽셀 굵게" disabled={width >= STROKE_WIDTH_MAX} onClick={() => chooseWidth(width + 1)}>+</button>
+                <input type="range" min={STROKE_WIDTH_MIN} max={STROKE_WIDTH_SCREEN_MAX} step={1} value={width} aria-label="선 굵기" aria-valuetext={`${width}픽셀`} onChange={(event) => chooseWidth(Number(event.target.value))} style={{ "--dock-width-fill": `${((width - STROKE_WIDTH_MIN) / (STROKE_WIDTH_SCREEN_MAX - STROKE_WIDTH_MIN)) * 100}%` } as React.CSSProperties} />
+                <button type="button" aria-label="1픽셀 굵게" disabled={width >= STROKE_WIDTH_SCREEN_MAX} onClick={() => chooseWidth(width + 1)}>+</button>
                 <output className="dock-width-value" aria-hidden="true">
                   {/* 지우개는 색을 쓰지 않는 도구라 점을 기본 잉크색으로 남겨 "지우는 크기"임을 구분한다. */}
                   <i style={{ width: Math.max(2, Math.round(width * 0.53)), height: Math.max(2, Math.round(width * 0.53)), background: studioTool === "eraser" ? undefined : selectedColor }} />
@@ -3156,19 +3216,19 @@ export function DrawingStudio() {
                           <button
                             type="button"
                             aria-label="글씨 작게"
-                            disabled={selectedText.fontSize === TEXT_SIZES[0]}
+                            disabled={toScreenUnits(selectedText.fontSize, span) === TEXT_SIZES[0]}
                             onClick={() => {
-                              const index = TEXT_SIZES.indexOf(selectedText.fontSize);
-                              if (index > 0) updateTextObject(selectedText, { fontSize: TEXT_SIZES[index - 1] });
+                              const index = TEXT_SIZES.indexOf(toScreenUnits(selectedText.fontSize, span) as TextSize);
+                              if (index > 0) updateTextObject(selectedText, { fontSize: documentWidthUnits(TEXT_SIZES[index - 1]) });
                             }}
                           >Aa−</button>
                           <button
                             type="button"
                             aria-label="글씨 크게"
-                            disabled={selectedText.fontSize === TEXT_SIZES.at(-1)}
+                            disabled={toScreenUnits(selectedText.fontSize, span) === TEXT_SIZES.at(-1)}
                             onClick={() => {
-                              const index = TEXT_SIZES.indexOf(selectedText.fontSize);
-                              if (index >= 0 && index < TEXT_SIZES.length - 1) updateTextObject(selectedText, { fontSize: TEXT_SIZES[index + 1] });
+                              const index = TEXT_SIZES.indexOf(toScreenUnits(selectedText.fontSize, span) as TextSize);
+                              if (index >= 0 && index < TEXT_SIZES.length - 1) updateTextObject(selectedText, { fontSize: documentWidthUnits(TEXT_SIZES[index + 1]) });
                             }}
                           >Aa＋</button>
                           <button type="button" className="text-delete" onClick={() => updateTextObject(selectedText, { deleted: true })}>🗑️ 지우기</button>

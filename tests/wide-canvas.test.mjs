@@ -96,3 +96,49 @@ test("이미 그린 도화지를 세로로 늘려도 화면에 그려지는 자�
   assert.equal(ops[0].points[0].y, 0);
   assert.equal(growDrawOps(ops, 1440, 720), ops);
 });
+
+test("넓은 도화지(span): 저장 형식은 그대로 두고 화면에서 몇 장인지만 담는다", async () => {
+  const { documentSpan, isDocumentSpan, NEW_DOCUMENT_SPAN, toDocumentUnits, toScreenUnits, contentBounds } = await import("../lib/drawing-model.ts");
+  // 옛 작품은 span이 없으므로 1로 읽혀 예전과 똑같이 열린다.
+  assert.equal(documentSpan({}), 1);
+  assert.equal(documentSpan({ span: 3 }), 3);
+  assert.equal(NEW_DOCUMENT_SPAN, 3);
+  for (const span of [1, 2, 3]) assert.ok(isDocumentSpan(span));
+  for (const bad of [0, 4, 2.5, "3", null]) assert.equal(isDocumentSpan(bad), false);
+  // 서버 검증도 같은 값만 받는다. 범위 밖이면 그 작품은 이후 저장이 막히므로 경계를 고정한다.
+  const withSpan = (span) => validateDrawDocument({ schemaVersion: 1, rendererVersion: 1, size: 1024, height: 640, span, ops: [] });
+  assert.equal(withSpan(3)?.span, 3);
+  assert.equal(withSpan(4), null);
+  assert.equal(withSpan(0), null);
+  assert.equal(validateDrawDocument({ schemaVersion: 1, rendererVersion: 1, size: 1024, height: 640, ops: [] })?.span, undefined);
+  // 화면에서 고른 굵기·글자 크기는 도화지 단위로 span배가 된다(화면에서 같은 크기로 보이게).
+  assert.equal(toDocumentUnits(16, 3), 48);
+  assert.equal(toScreenUnits(48, 3), 16);
+  assert.equal(toDocumentUnits(16, 1), 16);
+});
+
+test("넓은 도화지의 굵기·글자 크기는 저장 검증을 통과한다", () => {
+  const now = new Date().toISOString();
+  const doc = (ops) => ({ schemaVersion: 1, rendererVersion: 1, size: 1024, height: 640, span: 3, ops });
+  const stroke = (width) => ({ opId: "op_wide001", clientOpId: "client_wide001", type: "stroke", at: now, tool: "crayon", color: "#E53935", width, points: [{ x: 0.2, y: 0.2, pressure: 0.5 }] });
+  assert.ok(validateDrawDocument(doc([stroke(180)])), "60픽셀 × span 3 = 180은 통과해야 한다");
+  assert.equal(validateDrawDocument(doc([stroke(181)])), null);
+  const text = (fontSize) => ({ opId: "op_wide002", clientOpId: "client_wide002", type: "text", at: now, textObjectId: "text_abcd1234", text: "안녕", textKind: "label", fontSize, color: "#1B3A57", points: [{ x: 0.5, y: 0.5 }] });
+  assert.ok(validateDrawDocument(doc([text(192)])), "64 × 3 = 192는 통과해야 한다");
+  assert.equal(validateDrawDocument(doc([text(200)])), null);
+});
+
+test("그린 칸(contentBounds)은 완성 PNG를 그림에 맞춰 잘라내는 기준이다", async () => {
+  const { contentBounds } = await import("../lib/drawing-model.ts");
+  const now = new Date().toISOString();
+  const doc = { schemaVersion: 1, rendererVersion: 1, size: 1024, height: 1024, span: 3, ops: [
+    { opId: "op_wide001", clientOpId: "client_wide001", type: "stroke", at: now, tool: "crayon", color: "#E53935", width: 48, points: [{ x: 0.4, y: 0.4, pressure: 0.5 }, { x: 0.6, y: 0.5, pressure: 0.5 }] },
+  ] };
+  const bounds = contentBounds(doc);
+  // 굵은 선이 잘리지 않게 굵기 절반 + 1%만큼 넓힌다.
+  assert.ok(bounds.x < 0.4 && bounds.y < 0.4, `왼쪽·위로 여유: ${JSON.stringify(bounds)}`);
+  assert.ok(bounds.x + bounds.width > 0.6 && bounds.y + bounds.height > 0.5, "오른쪽·아래로 여유");
+  assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 1 && bounds.y + bounds.height <= 1, "도화지 밖으로 나가지 않는다");
+  // 아무것도 그리지 않았으면 잘라낼 것이 없다 — 이때는 도화지 전체를 내보낸다.
+  assert.equal(contentBounds({ schemaVersion: 1, rendererVersion: 1, size: 1024, height: 640, ops: [] }), null);
+});

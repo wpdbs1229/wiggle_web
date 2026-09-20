@@ -59,12 +59,13 @@ export const MARK_COLOR = "#ff6a2b";
 export const MARK_WIDTH = 10;
 
 /** 선생님·아이 화면이 같은 모양으로 그리도록 한곳에 둔다. 캔버스 크기는 문서 크기(1024×높이)다. */
-export function drawMarkStrokes(context: CanvasRenderingContext2D, strokes: readonly MarkStroke[], width: number, height: number, alpha = 0.9) {
+/* unitScale: 넓은 도화지(DrawDocument.span)에서는 화면에 같은 굵기로 보이도록 도화지 단위 굵기를 span배로 그린다. */
+export function drawMarkStrokes(context: CanvasRenderingContext2D, strokes: readonly MarkStroke[], width: number, height: number, alpha = 0.9, unitScale = 1) {
   context.save();
   context.globalAlpha = alpha;
   context.strokeStyle = MARK_COLOR;
   context.fillStyle = MARK_COLOR;
-  context.lineWidth = MARK_WIDTH * width / 1024;
+  context.lineWidth = MARK_WIDTH * unitScale * width / 1024;
   context.lineCap = "round";
   context.lineJoin = "round";
   for (const stroke of strokes) {

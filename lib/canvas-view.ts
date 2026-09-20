@@ -10,13 +10,18 @@ export type CanvasView = { scale: number; x: number; y: number };
 export const IDENTITY_VIEW: CanvasView = { scale: 1, x: 0, y: 0 };
 export const MIN_SCALE = 1;
 export const MAX_SCALE = 4;
+/* 넓은 도화지(2026-09-20)는 100%가 곧 "도화지 전체"가 아니다 — 끝까지 축소하면 1/span까지 내려간다.
+ * 그래서 아래 계산들은 배율 한계를 인자로 받는다. 넘기지 않으면 예전처럼 1~4배다. */
+export type ScaleLimits = { min?: number; max?: number };
+const limitScale = (scale: number, limits?: ScaleLimits) =>
+  Math.max(limits?.min ?? MIN_SCALE, Math.min(limits?.max ?? MAX_SCALE, scale));
 
 type Touch = { x: number; y: number };
 
 // 확대 배율과 이동량을 틀 안에 가둔다. 종이 가장자리가 틀 안쪽으로 끌려 들어와
 // 빈 바탕이 보이는 상태를 만들지 않는다.
-export function clampView(view: CanvasView, frameWidth: number, frameHeight = frameWidth, paperWidth = frameWidth, paperHeight = frameHeight): CanvasView {
-  const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale));
+export function clampView(view: CanvasView, frameWidth: number, frameHeight = frameWidth, paperWidth = frameWidth, paperHeight = frameHeight, limits?: ScaleLimits): CanvasView {
+  const scale = limitScale(view.scale, limits);
   return {
     scale,
     x: Math.max(Math.min(0, frameWidth - paperWidth * scale), Math.min(0, view.x)),
@@ -25,19 +30,19 @@ export function clampView(view: CanvasView, frameWidth: number, frameHeight = fr
 }
 
 // 한 점(단추로 누르면 틀 가운데, 트랙패드면 커서 자리)을 붙잡은 채 배율만 바꾼다.
-export function zoomView(view: CanvasView, nextScale: number, center: Touch, frameWidth: number, frameHeight: number, paperWidth = frameWidth, paperHeight = frameHeight): CanvasView {
-  const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale));
+export function zoomView(view: CanvasView, nextScale: number, center: Touch, frameWidth: number, frameHeight: number, paperWidth = frameWidth, paperHeight = frameHeight, limits?: ScaleLimits): CanvasView {
+  const scale = limitScale(nextScale, limits);
   const applied = scale / view.scale;
-  return clampView({ scale, x: center.x - (center.x - view.x) * applied, y: center.y - (center.y - view.y) * applied }, frameWidth, frameHeight, paperWidth, paperHeight);
+  return clampView({ scale, x: center.x - (center.x - view.x) * applied, y: center.y - (center.y - view.y) * applied }, frameWidth, frameHeight, paperWidth, paperHeight, limits);
 }
 
 // 두 손가락의 이전/현재 위치로 다음 뷰를 만든다. 두 손가락 중점이 가리키던
 // 문서 지점이 손가락을 따라오도록 scale과 translate를 함께 푼다.
-export function pinchView(view: CanvasView, before: [Touch, Touch], after: [Touch, Touch], frameWidth: number, frameHeight = frameWidth, paperWidth = frameWidth, paperHeight = frameHeight): CanvasView {
+export function pinchView(view: CanvasView, before: [Touch, Touch], after: [Touch, Touch], frameWidth: number, frameHeight = frameWidth, paperWidth = frameWidth, paperHeight = frameHeight, limits?: ScaleLimits): CanvasView {
   const spanBefore = Math.hypot(before[0].x - before[1].x, before[0].y - before[1].y);
   const spanAfter = Math.hypot(after[0].x - after[1].x, after[0].y - after[1].y);
   const ratio = spanBefore > 0 ? spanAfter / spanBefore : 1;
-  const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * ratio));
+  const scale = limitScale(view.scale * ratio, limits);
   const applied = scale / view.scale;
   const centerBefore = { x: (before[0].x + before[1].x) / 2, y: (before[0].y + before[1].y) / 2 };
   const centerAfter = { x: (after[0].x + after[1].x) / 2, y: (after[0].y + after[1].y) / 2 };
@@ -45,7 +50,7 @@ export function pinchView(view: CanvasView, before: [Touch, Touch], after: [Touc
     scale,
     x: centerAfter.x - (centerBefore.x - view.x) * applied,
     y: centerAfter.y - (centerBefore.y - view.y) * applied,
-  }, frameWidth, frameHeight, paperWidth, paperHeight);
+  }, frameWidth, frameHeight, paperWidth, paperHeight, limits);
 }
 
 /** 틀을 빈틈 없이 덮는 1배 종이 크기(가로 1024 기준 문서 세로 docHeight). */

@@ -418,7 +418,9 @@ async function main() {
             // 2026-09-15부터 도화지는 자리를 빈틈 없이 덮는다. 이미 그린 그림이 자리보다 옆으로 좁으면 위아래로 넘치고 옮겨 본다.
             canvasCoversZone: (() => { const zone = window.__wiggle.box(document.querySelector('.canvas-zone')); return canvasBox.left <= zone.left + 1 && canvasBox.right >= zone.right - 1 && canvasBox.top <= zone.top + 1 && canvasBox.bottom >= zone.bottom - 1; })(),
             exitBox: exit ? window.__wiggle.box(exit) : null,
-            canvasCenterHit: window.__wiggle.topElementAt(Math.round(canvasBox.left + canvasBox.w / 2), Math.round(canvasBox.top + canvasBox.h / 2)),
+            // 도화지가 화면보다 커진 뒤(2026-09-20 큰 도화지)로는 "도화지 한가운데"가 화면 밖일 수 있다.
+            // 아이가 실제로 누르는 곳은 그리기 자리 한가운데이므로 거기서 무엇이 잡히는지 본다.
+            canvasCenterHit: (() => { const zone = window.__wiggle.box(document.querySelector('.canvas-zone')); return window.__wiggle.topElementAt(Math.round(zone.left + zone.w / 2), Math.round(zone.top + zone.h / 2)); })(),
           };
         })()`);
         check(!studio.error, `${viewport.name} 그리기 화면 로드`, studio.error);
@@ -427,7 +429,7 @@ async function main() {
           check(studio.small.length === 0, `${viewport.name} 그리기 화면 터치 목표 44px 이상`, studio.small);
           check(studio.exitBox && Math.min(studio.exitBox.w, studio.exitBox.h) >= 44, `${viewport.name} 나가기 버튼 44px 이상`, studio.exitBox);
           check(studio.canvasCoversZone, `${viewport.name} 도화지가 자리를 빈틈 없이 채움`, studio.canvasBox);
-          check(studio.canvasCenterHit && String(studio.canvasCenterHit.cls).includes("draw-canvas"), `${viewport.name} 도화지 중앙이 다른 요소에 가려지지 않음`, studio.canvasCenterHit);
+          check(studio.canvasCenterHit && String(studio.canvasCenterHit.cls).includes("draw-canvas"), `${viewport.name} 그리기 자리 한가운데가 도화지다`, studio.canvasCenterHit);
         }
 
         const tools = await evaluate(cdp, session, `(async () => {
@@ -484,6 +486,10 @@ async function main() {
         const firstProbe = await probeCanvas();
         check(!firstProbe.error, `${viewport.name} 새 도구 검증용 도화지 확인`, firstProbe.error);
         if (!firstProbe.error) {
+          /* 2026-09-20부터 새 작품의 도화지는 화면 3장 크기(span)다. 100%에서는 도화지의 1/3만 화면에 있어
+             좌표 비율로 누르면 화면 밖을 누르게 된다. 그래서 아이처럼 축소 단추를 끝까지 눌러 도화지 전체를 보이게 한 뒤 검사한다. */
+          await evaluate(cdp, session, `(async () => { const wait = (ms) => new Promise((done) => setTimeout(done, ms)); for (let i = 0; i < 8; i += 1) { const b = document.querySelector('[aria-label="축소"]'); if (!b || b.disabled) break; b.click(); await wait(120); } })()`);
+          await sleep(400);
           // 도화지가 자리보다 길게 넘치면(다른 모양 화면에서 그린 그림) 검사 좌표의 세로 비율을 화면에 보이는 띠(머리 줄 아래~막대 손잡이 위) 안으로 옮긴다.
           const visibleBand = await evaluate(cdp, session, `(() => { const c = document.querySelector('.draw-canvas').getBoundingClientRect(); const z = document.querySelector('.canvas-zone').getBoundingClientRect(); const dock = document.querySelector('.tool-dock').getBoundingClientRect(); const top = Math.max(c.top, z.top); const bottom = Math.min(c.bottom, z.bottom, dock.top - 44); return c.height > z.height + 1 ? [(top - c.top) / c.height, (bottom - c.top) / c.height] : [0, 1]; })()`);
           const bandY = (fy) => visibleBand[0] + fy * (visibleBand[1] - visibleBand[0]);

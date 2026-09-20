@@ -15,6 +15,48 @@ export const DOCUMENT_SIZE = 1024;
 export const DOCUMENT_MIN_HEIGHT = 320;
 export const DOCUMENT_MAX_HEIGHT = 2240;
 export const DOCUMENT_HEIGHT_STEP = 1;
+
+/* 도화지 넓이(2026-09-20 사용자 결정: "엄청 큰 도화지 … 축소하면 도화지가 확장되는 느낌", 2번 안).
+ * `span`은 "100%로 볼 때 도화지가 화면 몇 개 너비인가"다. 좌표는 여전히 도화지 안의 0~1이고
+ * 가로 단위도 1024 그대로라, 저장 형식과 렌더러는 바뀌지 않는다 — 화면에서 얼마나 크게 펼쳐 보이는지만 달라진다.
+ * 옛 작품은 `span`이 없어 1(=화면 한 장)로 읽히므로 예전과 똑같이 열린다. */
+export const DOCUMENT_SPANS = [1, 2, 3] as const;
+export type DocumentSpan = (typeof DOCUMENT_SPANS)[number];
+export const NEW_DOCUMENT_SPAN: DocumentSpan = 3;
+export const isDocumentSpan = (value: unknown): value is DocumentSpan => DOCUMENT_SPANS.includes(value as DocumentSpan);
+export function documentSpan(document: Pick<DrawDocument, "span">): DocumentSpan {
+  return document.span ?? 1;
+}
+/** 화면에서 고른 크기(픽셀·글자 단계)를 도화지 단위로 바꾼다. 좁은 도화지(span 1)는 그대로다. */
+export const toDocumentUnits = (screenValue: number, span: number) => Math.round(screenValue * span);
+export const toScreenUnits = (documentValue: number, span: number) => Math.round(documentValue / span);
+/** 그린 것이 차지하는 칸(0~1). 넓은 도화지에서 완성 PNG·썸네일을 그림에 맞춰 잘라내는 데 쓴다.
+ *  아무것도 없으면 null. 굵은 선이 잘리지 않게 가장 굵은 선의 절반만큼 넓혀 준다. */
+export function contentBounds(document: DrawDocument): { x: number; y: number; width: number; height: number } | null {
+  let left = 1, top = 1, right = 0, bottom = 0, found = false, widest = 0;
+  for (const op of visibleDrawOperations(document.ops)) {
+    for (const point of op.points ?? []) {
+      found = true;
+      if (point.x < left) left = point.x;
+      if (point.x > right) right = point.x;
+      if (point.y < top) top = point.y;
+      if (point.y > bottom) bottom = point.y;
+    }
+    // 글자·스티커는 점 하나로 저장되므로 그 크기만큼 여유를 둔다.
+    const reach = op.type === "text" ? (op.fontSize ?? 64) * 1.2 : op.type === "sticker" ? 140 : (op.width ?? 0);
+    if (reach > widest) widest = reach;
+  }
+  if (!found) return null;
+  const height = documentHeight(document);
+  const padX = (widest / 2 + DOCUMENT_SIZE * 0.01) / DOCUMENT_SIZE;
+  const padY = (widest / 2 + DOCUMENT_SIZE * 0.01) / height;
+  left = Math.max(0, left - padX); right = Math.min(1, right + padX);
+  top = Math.max(0, top - padY); bottom = Math.min(1, bottom + padY);
+  return { x: left, y: top, width: Math.max(0.02, right - left), height: Math.max(0.02, bottom - top) };
+}
+
+export const isTextSize = (value: unknown): value is number =>
+  typeof value === "number" && DOCUMENT_SPANS.some((span) => TEXT_SIZES.includes((value / span) as TextSize));
 export const DEFAULT_DOCUMENT_HEIGHT = 640;
 
 export function isDocumentHeight(value: unknown): value is number {
@@ -37,8 +79,11 @@ export const STICKER_ALLOWLIST = ["star", "heart", "leaf", "cloud", "sparkle"] a
 // 새 연필 획은 "pencil"로 저장해 필압 렌더를 새 획에만 적용한다.
 export const STROKE_TOOLS = ["pen", "pencil", "crayon", "marker", "watercolor", "eraser"] as const;
 // 굵기는 1024 도화지 기준 픽셀 정수다. 예전 5단 값(3·8·16·30·48)도 이 범위 안이라 옛 작품이 그대로 열린다.
+/* 굵기는 도화지 단위(가로 1024 기준)다. 화면에서 고르는 값은 1~60픽셀이고, 넓은 도화지(span)에서는
+ * 화면 한 픽셀이 도화지 단위로 span배라 저장 값도 그만큼 커진다. 그래서 상한은 60 × 가장 넓은 도화지다. */
 export const STROKE_WIDTH_MIN = 1;
-export const STROKE_WIDTH_MAX = 60;
+export const STROKE_WIDTH_MAX = 60 * 3;
+export const STROKE_WIDTH_SCREEN_MAX = 60;
 export const SHAPE_KINDS = ["line", "circle", "triangle", "rectangle", "rounded-rectangle", "star", "heart", "arrow", "curve", "cloud"] as const;
 export const TEXT_KINDS = ["label", "title", "speech"] as const;
 export const TEXT_SIZES = [48, 64, 84] as const;
@@ -119,7 +164,8 @@ export type DrawOp = {
   textObjectId?: string;
   text?: string;
   textKind?: TextKind;
-  fontSize?: TextSize;
+  /* 글자 크기도 도화지 단위다 — 넓은 도화지(span)에서는 화면에서 같아 보이도록 TEXT_SIZES의 span배로 저장된다. */
+  fontSize?: number;
   deleted?: boolean;
 };
 
@@ -131,6 +177,8 @@ export type DrawDocument = {
   size: 1024;
   /* 없으면 정사각(1024). 기존 작품은 이 값이 없으므로 저장된 그림이 그대로 유지된다. */
   height?: DocumentHeight;
+  /* 없으면 1(화면 한 장). 2026-09-20부터 새 작품은 3 — 100%에서 도화지가 화면 세 개 너비다. */
+  span?: DocumentSpan;
   ops: DrawOp[];
 };
 
@@ -209,6 +257,7 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
   // 세로는 없거나(기존 정사각 문서) 허용 목록 안이어야 한다. 임의 값을 받으면 저장된 그림의
   // 비율을 클라이언트가 마음대로 바꿀 수 있고, 렌더 결과가 썸네일과 어긋난다.
   if (doc.height !== undefined && !isDocumentHeight(doc.height)) return null;
+  if (doc.span !== undefined && !isDocumentSpan(doc.span)) return null;
   const seen = new Set<string>();
   const activeTextIds = new Set<string>();
   for (const raw of doc.ops) {
@@ -239,7 +288,8 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
     if (op.type === "text") {
       if (typeof op.textObjectId !== "string" || !/^[a-zA-Z0-9_-]{8,80}$/.test(op.textObjectId)) return null;
       if (typeof op.text !== "string" || normalizeDrawingText(op.text) !== op.text) return null;
-      if (!op.textKind || !TEXT_KINDS.includes(op.textKind) || !TEXT_SIZES.includes((op.fontSize ?? 0) as TextSize)) return null;
+      // 글자 크기도 도화지 단위다. 넓은 도화지에서는 화면에서 같아 보이려면 span배로 저장된다.
+      if (!op.textKind || !TEXT_KINDS.includes(op.textKind) || !isTextSize(op.fontSize)) return null;
       if (!isHexColor(op.color) || !Array.isArray(op.points) || op.points.length !== 1 || op.points.some(invalidPoint)) return null;
       if (op.deleted !== undefined && typeof op.deleted !== "boolean") return null;
       if (!op.text.length || drawingTextGraphemes(op.text).length > MAX_TEXT_GRAPHEMES[op.textKind]) return null;
@@ -251,7 +301,7 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
   // 알려진 필드만 남기고 좌표를 정규화한 사본을 돌려준다. 원본을 그대로 통과시키면
   // 전체 정밀도 좌표(0.12345678901234568)와 미지의 속성이 함께 저장돼,
   // 크기 추정이 실제 직렬화 길이의 상한이 아니게 되고 저장이 한도에 걸린다.
-  return { schemaVersion: 1, rendererVersion: 1, size: 1024, ...(doc.height === undefined ? {} : { height: doc.height }), ops: doc.ops.map(normalizeOp) };
+  return { schemaVersion: 1, rendererVersion: 1, size: 1024, ...(doc.height === undefined ? {} : { height: doc.height }), ...(doc.span === undefined ? {} : { span: doc.span }), ops: doc.ops.map(normalizeOp) };
 }
 
 function normalizePoint(point: Point): Point {
