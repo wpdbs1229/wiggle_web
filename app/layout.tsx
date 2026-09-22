@@ -6,7 +6,7 @@ import { InputModeTracker } from "./components/InputModeTracker";
 
 const title = "Wiggle — 함께 그리며 생각해요";
 const description =
-  "설치 없이 교실에서 기초 도형부터 자유 창작까지 이어지는 어린이 그림 학습 웹앱";
+  "아이가 그리고, AI는 묻습니다. 설치 없이 교실에서 쓰는 초등 그림 창작 코칭 웹앱";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
@@ -34,7 +34,8 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       type: "website",
-      images: [{ url: new URL("/og.png", metadataBase), width: 1488, height: 1057, alt: "Wiggle Web 교실 그림 학습" }],
+      // 링크 미리보기 카드. 실제 대문 화면을 OG 표준 크기(1200×630)로 찍어 둔다 — 화면이 바뀌면 이 파일도 다시 찍는다.
+      images: [{ url: new URL("/og.png", metadataBase), width: 1200, height: 630, alt: "Wiggle 대문 — 오늘은 어떤 생각을 그려볼까요?" }],
     },
     twitter: {
       card: "summary_large_image",
