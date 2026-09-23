@@ -177,6 +177,16 @@ test("marker and watercolor render distinctly from pencil", () => {
   assert.match(renderer, /if \(op\.tool === "watercolor"\) \{[\s\S]{0,300}globalAlpha = 0\.12/);
 });
 
+test("도구 막대는 아이패드에서 선택·끌기 대상이 되지 않는다", () => {
+  // 2026-09-23 실기기 제보: 도구 그림을 누르고 있으면 iOS가 선택·드래그 항목으로 잡아
+  // 도구 줄이 파랗게 뜬 채 끌려다녔다. img의 draggable={false}로는 못 막는다.
+  const guard = css.match(/\.canvas-wrap[^{]*\{[^}]*-webkit-user-drag:none;[^}]*\}/);
+  assert.ok(guard, "도화지·막대 선택 금지 규칙을 찾지 못했다");
+  assert.match(guard[0], /\.tool-dock,\.tool-dock \*/);
+  assert.match(guard[0], /-webkit-touch-callout:none/);
+  assert.match(guard[0], /user-select:none/);
+});
+
 test("eraser footprint matches the square area removed from the document", () => {
   assert.match(studio, /className="eraser-footprint"/);
   // 네모의 %는 도화지(span장 너비) 기준이고 실제로 지워지는 칸은 저장 단위(굵기÷span)다.

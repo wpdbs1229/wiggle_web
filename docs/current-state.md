@@ -33,6 +33,29 @@
 - 새 작업을 시작하기 전에 `git status --short`와 최근 커밋을 확인한다.
 - 로컬·브랜치 커밋은 게이트를 통과했어도 `main` 반영(사용자 push) 전까지 배포 상태로 간주하지 않는다.
 
+## 2026-09-23 아이패드에서 도구 막대가 선택돼 끌려다녔다 (`claude/eraser-footprint-size-20260923`)
+
+사용자가 아이패드 에어 실기기 사진을 보내 주셨다 — 도구 줄(연필~지우개)이 **파란 선택 영역**으로
+잡히고 iOS 선택 손잡이가 붙은 채였다.
+
+- **원인**: 2026-08-09에 넣은 `-webkit-touch-callout / user-select / -webkit-user-drag: none`
+  규칙이 **도화지 네 요소에만** 걸려 있었다. 막대는 그 밖이라 iOS가 도구 그림을 선택·드래그
+  항목으로 잡았다. `<img draggable={false}>`는 HTML5 끌기만 막고 이 동작은 못 막는다.
+- **고친 곳**: `globals.css`의 같은 규칙에 `.tool-dock, .tool-dock *`와 `.zoom-controls,
+  .zoom-controls *`를 더했다(둘 다 도화지 위에 떠 있는 조작부다).
+- **검증**: `browser-check`에 캐스케이드 뒤 computed 값 검사를 넣었다. 같은 화면에서
+  막대 도구 그림 `none` / 규칙 밖인 `.studio-header button` `auto`로 갈리는 것을 확인했다
+  (= 이 규칙이 값을 바꾼 게 맞다). `-webkit-touch-callout`은 사파리 전용이라 크롬 computed에
+  안 나와 선언 자체는 `drawing-tools.test.mjs`가 지킨다.
+- **남은 확인**: iOS의 실제 길게 누르기 동작은 크롬으로 재현되지 않는다. **아이패드 실기기 재확인 필요.**
+
+### 같이 발견했지만 아직 안 고친 것 — 접기 손잡이가 도화지를 덮는다
+`.dock-toggle`은 76×44px에 배경이 투명한데, 그중 **43px이 막대 위(도화지 쪽)에 떠 있다**.
+눈에 보이는 탭은 아래 30px뿐이라 14px은 보이지 않는다. `elementFromPoint`로 그 구간을 찍으면
+`draw-canvas`가 아니라 `dock-toggle`이 잡히고, 펜·마우스로 아래로 16px 넘게 끌면 막대가 접힌다
+(실측: 획은 하나도 안 그려지고 `tool-dock` → `tool-dock is-collapsed`). 손가락은 click이 취소돼
+막대는 그대로지만 획이 안 그려지는 것은 같다. 고치는 방법 세 가지를 사용자에게 제시하고 대기 중.
+
 ## 2026-09-23 지우개 네모가 실제 지움 칸의 3배였다 (`claude/eraser-footprint-size-20260923`)
 
 사용자: "지움 범위가 지움 범위를 표시하는 네모칸에 비해 작아."

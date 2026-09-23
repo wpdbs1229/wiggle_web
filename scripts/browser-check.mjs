@@ -454,7 +454,15 @@ async function main() {
             const reach = window.__wiggle.reachable(target);
             if (!reach.onScreen || !reach.hitsSelf) unreachable.push({ label: window.__wiggle.label(target), ...reach });
           }
-          return { unreachable, primaryTools, scrolls: body ? body.scrollHeight - body.clientHeight : 0 };
+          /* 아이패드에서 도구 그림을 누르고 있으면 iOS가 "선택·드래그 항목"으로 잡아 도구 줄이 파랗게
+             뜬 채 끌려다녔다(2026-09-23 실기기 제보). img의 draggable={false}로는 안 막히고
+             user-select·-webkit-user-drag가 막대까지 걸려 있어야 한다. 캐스케이드 뒤 실제 값으로 본다. */
+          const dockArt = document.querySelector('.tool-dock .dock-tool-art img');
+          const dockGrab = dockArt ? (() => {
+            const style = getComputedStyle(dockArt);
+            return { userSelect: style.userSelect || style.webkitUserSelect, userDrag: style.webkitUserDrag, callout: style.webkitTouchCallout };
+          })() : null;
+          return { unreachable, primaryTools, dockGrab, scrolls: body ? body.scrollHeight - body.clientHeight : 0 };
         })()`);
         check(!tools.error, `${viewport.name} 도구 패널 재현`, tools.error);
         if (!tools.error) {
@@ -463,6 +471,8 @@ async function main() {
           const shownTools = tools.primaryTools.filter((tool) => tool.visible);
           check(shownTools.length === 6 && shownTools.every((tool) => Math.min(tool.buttonBox.w, tool.buttonBox.h) >= 44), `${viewport.name} 도구 막대 도구 6개가 보이고 터치 목표 44px 이상`, shownTools);
           check(shownTools.every((tool) => tool.artLoaded), `${viewport.name} 세워진 도구 그림이 모두 불러와짐`, shownTools);
+          // -webkit-touch-callout은 사파리 전용이라 크롬 computed에 안 나온다. 선언 자체는 CSS 단위 검사가 지킨다.
+          check(Boolean(tools.dockGrab) && tools.dockGrab.userSelect === "none" && tools.dockGrab.userDrag === "none", `${viewport.name} 도구 그림을 길게 눌러도 선택·끌기가 안 됨`, tools.dockGrab);
         }
 
         // 4.5) 새 도구 실동작: 대칭 쌍·그룹 되돌리기·채우기·도형 2탭을 실제 입력 파이프라인으로 검증.
