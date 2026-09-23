@@ -1491,7 +1491,9 @@ export function DrawingStudio() {
     footprint.style.left = `${point.x * 100}%`;
     footprint.style.top = `${point.y * 100}%`;
     // 가로 도화지에서는 가로 %와 세로 %가 다른 픽셀이 된다 — 가로 기준 폭 + aspect-ratio로 정사각을 지킨다.
-    footprint.style.width = `${eraserWidth / 10.24}%`;
+    // %는 도화지(span장 너비) 기준이므로 화면 굵기를 그대로 쓰면 안 된다 — 실제로 지워지는 칸은
+    // 저장 단위(굵기÷span)라, 그대로 두면 새 도화지(span 3)에서 네모만 3배로 커진다.
+    footprint.style.width = `${documentWidthUnits(eraserWidth) / 10.24}%`;
     footprint.style.height = "auto";
     footprint.dataset.pressed = pressed ? "true" : "false";
   }

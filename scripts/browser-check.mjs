@@ -574,6 +574,37 @@ async function main() {
           const shapeEdge = await pixel(shapeLeft, shapeProbeY);
           check(differs(beforeEdge, shapeEdge) && shapeEdge[2] > 40 && shapeEdge[0] < 120, `${viewport.name} 두 번째 탭으로 네모가 그려짐`, { beforeEdge, shapeEdge });
 
+          /* 지우개: 아이가 보는 네모와 실제로 지워지는 칸이 같아야 한다. 네모의 %는 도화지(span장 너비)
+             기준이고 지워지는 칸은 저장 단위(굵기÷span)라, 화면 굵기를 그대로 쓰면 네모만 span배로 커진다
+             (2026-09-23 사용자: "지움 범위가 네모칸에 비해 작아"). 소스 문자열로는 잡히지 않아 실제로 재 본다. */
+          await clickPanelButton("지우개"); await sleep(200);
+          const eraseX = 0.3 + rowShift; const eraseY = 0.62 - rowShift;
+          rect = await probeCanvas();
+          const erasePoint = at(rect, eraseX, eraseY);
+          await mouse("mouseMoved", erasePoint.x, erasePoint.y, 0); await sleep(200);
+          const footprintBox = await evaluate(cdp, session, `(() => {
+            const mark = document.querySelector('.eraser-footprint');
+            if (!mark || mark.hidden) return null;
+            const box = mark.getBoundingClientRect();
+            return { width: box.width, height: box.height };
+          })()`);
+          await tapOn(erasePoint); await sleep(400);
+          // 도화지는 불투명한 흰 바탕이라, destination-out으로 파인 자리만 알파 0이 된다.
+          const erasedRun = await evaluate(cdp, session, `(() => {
+            const canvas = document.querySelector('.draw-canvas');
+            const box = canvas.getBoundingClientRect();
+            const row = Math.min(canvas.height - 1, Math.max(0, Math.round(${bandY(eraseY)} * canvas.height)));
+            const data = canvas.getContext('2d').getImageData(0, row, canvas.width, 1).data;
+            let run = 0; let longest = 0;
+            for (let x = 0; x < canvas.width; x += 1) {
+              if (data[x * 4 + 3] === 0) { run += 1; if (run > longest) longest = run; } else run = 0;
+            }
+            return { cssWidth: longest * box.width / canvas.width, backingWidth: canvas.width };
+          })()`);
+          const eraseGap = footprintBox && erasedRun.cssWidth > 0 ? Math.abs(erasedRun.cssWidth - footprintBox.width) / footprintBox.width : 1;
+          check(Boolean(footprintBox) && erasedRun.cssWidth > 0 && eraseGap <= 0.25, `${viewport.name} 지우개 네모와 실제 지워진 칸의 크기가 같음`, { footprintBox, erasedRun, eraseGap });
+          await clickPanelButton("연필"); await sleep(120);
+
           // 핀치 폴백(펜 없는 기기): 한 손가락으로 긋다 두 번째 손가락이 합류하면
           // 진행 중 그리기를 버리고 핀치 확대가 실제로 시작돼야 한다.
           if (viewport.name === "390x844" || viewport.name === "iPad-768x880-safari") {

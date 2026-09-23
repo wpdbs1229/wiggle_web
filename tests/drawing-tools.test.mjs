@@ -179,7 +179,9 @@ test("marker and watercolor render distinctly from pencil", () => {
 
 test("eraser footprint matches the square area removed from the document", () => {
   assert.match(studio, /className="eraser-footprint"/);
-  assert.match(studio, /footprint\.style\.width = `\$\{eraserWidth \/ 10\.24\}%`/);
+  // 네모의 %는 도화지(span장 너비) 기준이고 실제로 지워지는 칸은 저장 단위(굵기÷span)다.
+  // 화면 굵기를 그대로 넣으면 새 도화지(span 3)에서 네모만 3배로 커진다(2026-09-23 사용자 제보).
+  assert.match(studio, /footprint\.style\.width = `\$\{documentWidthUnits\(eraserWidth\) \/ 10\.24\}%`/);
   assert.match(studio, /footprint\.style\.height = "auto"/);
   assert.match(css, /\.eraser-footprint \{ aspect-ratio:1; \}/);
   assert.match(renderer, /function eraseWithSquareFootprint/);

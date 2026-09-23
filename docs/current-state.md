@@ -33,6 +33,22 @@
 - 새 작업을 시작하기 전에 `git status --short`와 최근 커밋을 확인한다.
 - 로컬·브랜치 커밋은 게이트를 통과했어도 `main` 반영(사용자 push) 전까지 배포 상태로 간주하지 않는다.
 
+## 2026-09-23 지우개 네모가 실제 지움 칸의 3배였다 (`claude/eraser-footprint-size-20260923`)
+
+사용자: "지움 범위가 지움 범위를 표시하는 네모칸에 비해 작아."
+
+- **원인**: 네모(`.eraser-footprint`)의 `width`는 도화지(`.canvas-stack`, 화면 span장 너비) 기준 %인데
+  화면에서 고른 굵기를 그대로 넣고 있었다. 실제로 파이는 칸은 저장 단위(`굵기 ÷ span`)로 그려진다
+  (`eraseWithSquareFootprint`: `op.width * size / 1024`). 2026-09-20부터 새 작품은 `span = 3`이라
+  네모만 정확히 3배로 떴다.
+- **고친 곳**: `DrawingStudio.tsx`의 `updateEraserFootprint` 한 줄 —
+  `documentWidthUnits(eraserWidth) / 10.24`로 저장 단위를 쓴다.
+- **검증**: `scripts/browser-check.mjs`에 실측 검사를 새로 넣었다. 지우개로 한 번 눌러 도화지에서
+  알파가 0이 된 가로 구간을 재고, 같은 순간의 네모 `getBoundingClientRect()`와 비교한다(허용 25%).
+  고치기 전 실측: 네모 18.28px / 실제 지움 5.71px(격차 69%, = 1/3). 고친 뒤 세 뷰포트 모두 통과.
+- 소스 문자열만 보던 `tests/drawing-tools.test.mjs`의 지우개 검사도 새 식으로 갱신했다 —
+  그 검사는 두 크기가 어긋나 있는 동안에도 계속 초록불이었다.
+
 ## 2026-09-20 내 그림 보관함 = 펼친 스케치북 (GPT 인계 에셋 적용) (`claude/archive-book-20260920`)
 
 사용자가 전달한 **GPT(Codex) 인계 묶음** `archive-sketchbook-handoff v2`를 그대로 따라 구현했다.
