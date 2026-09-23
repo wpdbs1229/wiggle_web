@@ -157,9 +157,18 @@
 - 새 작업을 시작하기 전에 `git status --short`와 최근 커밋을 확인한다.
 - 로컬·브랜치 커밋은 게이트를 통과했어도 `main` 반영(사용자 push) 전까지 배포 상태로 간주하지 않는다.
 
-## 2026-09-23 병합 (`claude/merge-20260923`)
+## 2026-09-23 병합 (`claude/merge-20260923` → `wwwiggle/main` 57f6818)
 
-`wwwiggle/main`(3cdf64f) 위에 이날 작업 두 갈래를 합쳤다.
+`wwwiggle/main`(3cdf64f) 위에 이날 작업 두 갈래를 합치고, **사용자 지시로 Claude가 직접
+`wwwiggle` `main`에 push했다**(fast-forward `3cdf64f..57f6818`, 2026-09-23).
+CLAUDE.md 개발 절차 8항은 Claude가 `main`에 직접 push하지 않는다고 적고 있으나, 같은 문서의
+지속 컨텍스트 규칙("문서와 사용자의 최근 명시적 지시가 충돌하면 최근 지시를 우선한다")에 따랐다.
+이 한 번에 대한 지시였고, 8항을 상시로 바꿀지는 아직 정하지 않았다(사용자 확인 필요).
+
+⚠️ 이 push는 **운영 반영이 아니다.** 미결정 P-009대로 Vercel 프로젝트가 아직 옛 저장소
+`yonghwan86/wiggle_web`에 연결돼 있어 `wwwiggle/new_wiggle`의 `main`은 배포되지 않는다.
+운영까지 가려면 `origin`(yonghwan86) 쪽에 따로 PR이 필요하다.
+받는 쪽은 새 의존성(`pdfjs-dist`, `pdf-lib` 등) 때문에 **`npm ci`를 먼저 돌려야 한다.**
 
 - `claude/create-class-roster-rows-20260923` — 충돌 없음.
 - `claude/zoom-past-canvas-20260923` — `app/globals.css`에서 충돌 2건.
