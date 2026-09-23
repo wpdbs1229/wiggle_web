@@ -613,7 +613,9 @@ async function main() {
           })()`);
           const eraseGap = footprintBox && erasedRun.cssWidth > 0 ? Math.abs(erasedRun.cssWidth - footprintBox.width) / footprintBox.width : 1;
           check(Boolean(footprintBox) && erasedRun.cssWidth > 0 && eraseGap <= 0.25, `${viewport.name} 지우개 네모와 실제 지워진 칸의 크기가 같음`, { footprintBox, erasedRun, eraseGap });
-          await clickPanelButton("연필"); await sleep(120);
+          // 여기서 연필로 되돌리지 않는다. 아래 "연필로 되돌린다" 단계가 이미 하는데, 먼저 골라 두면
+          // 그 클릭이 "같은 도구 다시 누르기"가 돼 굵기 자가 열리고, 뒤의 몽그리 접기 검사에서
+          // 도화지 탐침 자리를 가린다(2026-09-23 이 검사를 넣으면서 실제로 겪은 일).
 
           // 핀치 폴백(펜 없는 기기): 한 손가락으로 긋다 두 번째 손가락이 합류하면
           // 진행 중 그리기를 버리고 핀치 확대가 실제로 시작돼야 한다.
