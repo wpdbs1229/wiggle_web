@@ -64,16 +64,16 @@ export function FamilyView() {
     const width = 1080; const height = format === "square" ? 1080 : 1920;
     const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
     const context = canvas.getContext("2d"); if (!context) throw new Error("카드를 만들 수 없어요.");
-    context.fillStyle = "#EAF8FC"; context.fillRect(0, 0, width, height);
+    context.fillStyle = "#F2F5EE"; context.fillRect(0, 0, width, height);
     context.fillStyle = "#FFFFFF"; context.beginPath(); context.roundRect(70, 70, width - 140, height - 140, 54); context.fill();
-    context.fillStyle = "#1B3A57"; context.font = "800 54px sans-serif"; context.fillText("Wiggle 이번 주 그림 기록", 120, 155);
-    context.font = "700 37px sans-serif"; context.fillStyle = "#42718A"; context.fillText(`${data.family.animal} 작품과 아이의 말`, 120, 215);
+    context.fillStyle = "#16220F"; context.font = "800 54px sans-serif"; context.fillText("Wiggle 이번 주 그림 기록", 120, 155);
+    context.font = "700 37px sans-serif"; context.fillStyle = "#2E5F23"; context.fillText(`${data.family.animal} 작품과 아이의 말`, 120, 215);
     const image = await loadImage(data.artworks[0].imageDataUrl); const top = 275; const imageSize = Math.min(840, height - 620);
     context.drawImage(image, 120, top, 840, imageSize);
-    context.fillStyle = "#1B3A57"; context.font = "700 32px sans-serif";
+    context.fillStyle = "#16220F"; context.font = "700 32px sans-serif";
     const text = reportObservation.length > 42 ? `${reportObservation.slice(0, 42)}…` : reportObservation;
     context.fillText(text, 120, top + imageSize + 70);
-    context.fillStyle = "#5C7C8E"; context.font = "500 25px sans-serif"; context.fillText("승인된 비공개 기록 · 이름과 학교 정보는 카드에 넣지 않아요", 120, height - 115);
+    context.fillStyle = "#5A6B52"; context.font = "500 25px sans-serif"; context.fillText("승인된 비공개 기록 · 이름과 학교 정보는 카드에 넣지 않아요", 120, height - 115);
     return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("카드를 만들 수 없어요.")), "image/png"));
   }
 

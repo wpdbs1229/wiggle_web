@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { activeProfile, studentFetch } from "@/lib/client-session";
 import { DEFAULT_STORYBOOK_FORMAT } from "@/lib/storybook-model";
 import { Logo } from "./Logo";
+import { BookOpen } from "lucide-react";
 
 type LibraryBook = { id: string; title: string; pageCount: number; status: "draft" | "complete"; updatedAt: string };
 
@@ -53,11 +54,11 @@ export function StorybookLibrary() {
 
   return <main className="app-shell storybook-library">
     <header className="app-header"><Logo /><a className="small-button" href="/student/archive">← 내 그림</a></header>
-    <section className="storybook-library-hero"><div><p className="eyebrow">내가 직접 꾸미는 작업실</p><h1>나만의 그림책 만들기</h1><p>위쪽에는 이야기 한 편을 쓰고 그 아래에는 내 그림을 놓아 봐요.</p></div><span aria-hidden="true">📖✨</span></section>
+    <section className="storybook-library-hero"><div><p className="eyebrow">내가 직접 꾸미는 작업실</p><h1>나만의 그림책 만들기</h1><p>위쪽에는 이야기 한 편을 쓰고 그 아래에는 내 그림을 놓아 봐요.</p></div><BookOpen aria-hidden="true" /></section>
     {error && <p className="error-box" role="alert">{error}</p>}
     <section className="storybook-new-book"><h2>새 그림책</h2><div className="storybook-format-options storybook-fixed-format">
 <button type="button" disabled={creating} onClick={() => void create()}><i className="format-squarebook-hc" /><b>새 그림책 만들기</b><small>하드커버 · 243 × 248mm</small></button>
     </div>{creating && <p role="status">새 도화지를 준비하는 중…</p>}</section>
-    <section className="storybook-my-books"><h2>내 그림책</h2>{books === null ? <div className="loading-card">그림책을 펼치는 중…</div> : books.length ? <div className="storybook-book-grid">{books.map((book) => <a href={`/student/books/${book.id}`} key={book.id}><span aria-hidden="true">{book.status === "complete" ? "📕" : "📘"}</span><div><small>{book.pageCount}쪽 · {book.status === "complete" ? "완성" : "편집 중"}</small><h3>{book.title || "제목을 지어 주세요"}</h3><time dateTime={book.updatedAt}>{new Date(book.updatedAt).toLocaleDateString("ko-KR")}</time></div><b>열기 →</b></a>)}</div> : <div className="empty-state">아직 그림책이 없어요. 위에서 첫 그림책을 만들어 봐요.</div>}</section>
+    <section className="storybook-my-books"><h2>내 그림책</h2>{books === null ? <div className="loading-card">그림책을 펼치는 중…</div> : books.length ? <div className="storybook-book-grid">{books.map((book) => <a href={`/student/books/${book.id}`} key={book.id}><BookOpen aria-hidden="true" /><div><small>{book.pageCount}쪽 · {book.status === "complete" ? "완성" : "편집 중"}</small><h3>{book.title || "제목을 지어 주세요"}</h3><time dateTime={book.updatedAt}>{new Date(book.updatedAt).toLocaleDateString("ko-KR")}</time></div><b>열기 →</b></a>)}</div> : <div className="empty-state">아직 그림책이 없어요. 위에서 첫 그림책을 만들어 봐요.</div>}</section>
   </main>;
 }
