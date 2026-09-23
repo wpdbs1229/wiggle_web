@@ -87,3 +87,29 @@ test("서버가 누가 열었는지 함께 보낸다", async () => {
   assert.match(route, /childChoice, openedBy, currentStep/);
   assert.match(studio, /openedBy: auto \? "mongri" : "child"/);
 });
+
+/* 2026-09-23 사용자 결정: 몽그리 카드는 읽기 전용이다.
+ * 아이가 답 칩을 고르고 `그린 뒤 했어요`를 눌러 답을 보내던 왕복을 없앴다. 그 왕복은
+ * 같은 질문에 답을 두 번 보내면 409 `이미 처리한 도움 기록이에요`를 띄웠고(선택을 바꾸면
+ * 단추가 다시 열렸다), 답을 골라야 `이제 그려 볼 일`이 나타나 아이가 무엇을 할지 늦게 알았다. */
+test("몽그리 카드는 읽고 바로 그리러 간다 — 답을 보내는 길이 없다", async () => {
+  const studio = await read("../app/components/DrawingStudio.tsx");
+  const css = await read("../app/globals.css");
+
+  // 관찰 한마디 → 궁금한 점 → 지금 그려 볼 일이 한 번에 보인다.
+  assert.match(studio, /\{coaching\.growthEvent && <p className="grimi-observed">\{coaching\.growthEvent\}<\/p>\}/);
+  assert.match(studio, /<p className="eyebrow">몽그리가 궁금해요<\/p>[\s\S]{0,200}<h2>\{coaching\.question\}<\/h2>/);
+  // 다음 행동은 조건 없이 보인다 — 예전에는 `{answer && (` 뒤에 있었다.
+  assert.match(studio, /<div className="next-action">\s*<small>이제 그려 볼 일<\/small>/);
+  assert.match(studio, /className="button secondary full grimi-again"[\s\S]{0,240}다른 것도 물어보기/);
+  assert.match(css, /\.grimi-observed \{/);
+
+  // 답을 보내는 길이 남아 있으면 안 된다.
+  assert.doesNotMatch(studio, /recordCoachingAnswer|answerSaved|answerLabel|grimi-chips|direct-answer/);
+  assert.doesNotMatch(studio, /action: "answer"/);
+  assert.doesNotMatch(studio, /그린 뒤 ‘했어요’|과정에 남겼어요/);
+
+  // 다시 부르거나 닫을 때 앞 도움 기록은 dismiss로 닫는다 — 열린 채로 쌓이지 않는다.
+  assert.match(studio, /function closeCoachingEvent\(eventId\?: string\)[\s\S]{0,320}action: "dismiss"/);
+  assert.match(studio, /closeCoachingEvent\(coaching\?\.eventId\);\s*\n\s*setCoaching\(null\)/);
+});
