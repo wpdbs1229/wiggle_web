@@ -629,6 +629,11 @@ async function main() {
           } else {
             rect = await probeCanvas();
             const pinchCenter = at(rect, 0.5, 0.5);
+            /* 이 검사는 위에서 축소 단추를 끝까지 누른 상태에서 시작한다. 그 바닥 배율은 도화지 넓이(span)와
+               축소 한계가 바뀌면 함께 바뀌므로, 절대 숫자로 재면 핀치와 상관없는 변경에 깨진다
+               (2026-09-23 축소 한계를 한 칸 내렸을 때 실제로 깨짐). 핀치 전후를 비교한다. */
+            const scaleNow = `(() => { const stack = document.querySelector('.canvas-stack'); return new DOMMatrix(getComputedStyle(stack).transform).a; })()`;
+            const beforePinch = await evaluate(cdp, session, scaleNow);
             const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((point, index) => ({ x: Math.round(point.x), y: Math.round(point.y), id: index + 1 })) }, session);
             await touch("touchStart", [{ x: pinchCenter.x - 15, y: pinchCenter.y }]);
             await touch("touchMove", [{ x: pinchCenter.x - 25, y: pinchCenter.y }]);
@@ -636,8 +641,8 @@ async function main() {
             for (let step = 1; step <= 5; step += 1) await touch("touchMove", [{ x: pinchCenter.x - 25 - step * 14, y: pinchCenter.y }, { x: pinchCenter.x + 25 + step * 14, y: pinchCenter.y }]);
             await touch("touchEnd", []);
             await sleep(250);
-            const zoomScale = await evaluate(cdp, session, `(() => { const stack = document.querySelector('.canvas-stack'); const matrix = new DOMMatrix(getComputedStyle(stack).transform); return matrix.a; })()`);
-            check(zoomScale > 1.05, `${viewport.name} 손가락 두 개 핀치로 확대됨`, zoomScale);
+            const zoomScale = await evaluate(cdp, session, scaleNow);
+            check(zoomScale > beforePinch * 1.5, `${viewport.name} 손가락 두 개 핀치로 확대됨`, { beforePinch, zoomScale });
             await evaluate(cdp, session, `(() => { const reset = document.querySelector('.zoom-fit'); if (reset && !reset.disabled) reset.click(); })()`);
             await sleep(200);
           }
@@ -694,30 +699,33 @@ async function main() {
           for (let attempt = 0; attempt < 60 && !panel.querySelector('.grimi-coaching'); attempt += 1) await wait(200);
           const scroll = panel.querySelector('.grimi-scroll');
           if (!panel.querySelector('.grimi-coaching') || !scroll) return { error: 'no-coaching', html: panel.innerText.slice(0, 120) };
-          // 아이가 선택지를 골라야 다음 행동과 확인 버튼이 나타난다.
-          panel.querySelector('.grimi-chips button')?.click();
-          await wait(300);
+          /* 몽그리 카드는 읽기 전용이다(2026-09-23 「몽그리 카드를 읽기 전용으로 바꾸기」).
+             답 칩을 고르고 되돌려 보내던 왕복을 없앴으므로, 고르는 동작 없이 처음부터
+             관찰 한마디 → 궁금한 점 → 「이제 그려 볼 일」이 한 번에 보여야 한다.
+             (이 문자열은 바깥 템플릿 리터럴 안이라 백틱을 쓰면 문자열이 끊긴다.) */
           const question = panel.querySelector('.grimi-coaching h2');
+          const nextAction = panel.querySelector('.next-action');
+          const again = panel.querySelector('.grimi-again');
           const chips = [...panel.querySelectorAll('.grimi-chips button')];
-          const confirm = panel.querySelector('.next-action .child-primary-action');
           const exit = panel.querySelector('.free-exit');
-          const close = panel.querySelector('.grimi-head > button');
+          const close = panel.querySelector('.grimi-head [aria-label="몽그리 닫기"]');
           const reach = (element) => element ? window.__wiggle.reachable(element) : null;
-          const startState = { question: reach(question), firstChip: reach(chips[0]), close: reach(close), exit: reach(exit) };
-          // 아이가 확인 버튼까지 이동하는 경로: 시트 안쪽 스크롤 한 번
-          confirm?.scrollIntoView({ block: 'center' });
+          const startState = { question: reach(question), nextAction: reach(nextAction), close: reach(close), exit: reach(exit), chipCount: chips.length };
+          // 아이가 맨 아래 행동(다른 것도 물어보기)까지 이동하는 경로: 시트 안쪽 스크롤 한 번
+          again?.scrollIntoView({ block: 'center' });
           await wait(250);
-          const afterScroll = { confirm: reach(confirm), close: reach(close), exit: reach(exit), confirmBox: confirm ? window.__wiggle.box(confirm) : null };
+          const afterScroll = { confirm: reach(again), close: reach(close), exit: reach(exit), confirmBox: again ? window.__wiggle.box(again) : null };
           const nestedScrollers = [...panel.querySelectorAll('*')].filter((element) => element !== scroll && element.scrollHeight - element.clientHeight > 4 && ['auto', 'scroll'].includes(getComputedStyle(element).overflowY));
           return { startState, afterScroll, nestedScrollers: nestedScrollers.map((element) => window.__wiggle.label(element)), scrollerHeight: scroll.clientHeight, contentHeight: scroll.scrollHeight };
         })()`);
         check(!coaching.error, `${viewport.name} 코칭 내용 레이아웃 재현`, coaching.error);
         if (!coaching.error) {
           check(coaching.startState.question?.onScreen, `${viewport.name} 몽그리 첫 질문이 바로 보임`, coaching.startState.question);
-          check(coaching.startState.firstChip?.hitsSelf, `${viewport.name} 첫 선택지를 바로 누를 수 있음`, coaching.startState.firstChip);
+          check(coaching.startState.nextAction?.onScreen, `${viewport.name} '이제 그려 볼 일'이 고르지 않아도 바로 보임`, coaching.startState.nextAction);
+          check(coaching.startState.chipCount === 0, `${viewport.name} 답을 되돌려 보내는 칩이 없음(읽기 전용)`, coaching.startState.chipCount);
           check(coaching.startState.close?.hitsSelf, `${viewport.name} 코칭 중에도 닫기가 고정되어 보임`, coaching.startState.close);
           check(coaching.startState.exit?.hitsSelf, `${viewport.name} 코칭 중에도 탈출 버튼이 고정되어 보임`, coaching.startState.exit);
-          check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 확인 버튼에 닿음`, coaching.afterScroll.confirm);
+          check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 '다른 것도 물어보기'에 닿음`, coaching.afterScroll.confirm);
           check(coaching.afterScroll.close?.hitsSelf && coaching.afterScroll.exit?.hitsSelf, `${viewport.name} 스크롤 뒤에도 닫기·탈출이 그대로 보임`, coaching.afterScroll);
           check(coaching.nestedScrollers.length === 0, `${viewport.name} 시트 안에 숨은 중첩 스크롤이 없음`, coaching.nestedScrollers);
         }
@@ -744,12 +752,13 @@ async function main() {
           const probeX = Math.round(canvasBox.left + canvasBox.w / 2);
           const hit = window.__wiggle.topElementAt(probeX, probeY);
           const probePoint = { x: probeX, y: probeY };
-          const confirm = peek?.querySelector('.child-primary-action');
+          // 접힌 줄도 읽기 전용이다 — 답을 요구하는 단추가 있으면 안 된다.
+          const peekButtons = [...(peek?.querySelectorAll('button') ?? [])].map((b) => (b.textContent || '').trim().slice(0, 12));
           const reExpand = document.querySelector('.grimi-collapse');
           return {
             peekShown: Boolean(peek),
             nextActionShown: Boolean(peek?.querySelector('b')?.textContent?.trim()),
-            confirmReachable: confirm ? window.__wiggle.reachable(confirm) : null,
+            peekButtons,
             drawableHeight: Math.round(Math.min(canvasBox.bottom, panelBox.top) - canvasBox.top),
             probeHitsCanvas: Boolean(hit && String(hit.cls).includes('draw-canvas')),
             probeHit: hit, probePoint,
@@ -760,7 +769,7 @@ async function main() {
         check(!collapse.error, `${viewport.name} 몽그리 접기 재현`, collapse.error);
         if (!collapse.error) {
           check(collapse.peekShown && collapse.nextActionShown, `${viewport.name} 접어도 다음 행동이 계속 보임`, collapse);
-          check(collapse.confirmReachable?.hitsSelf, `${viewport.name} 접은 상태에서 '그렸어요'를 누를 수 있음`, collapse.confirmReachable);
+          check(collapse.peekButtons.length === 0, `${viewport.name} 접힌 줄에 답을 요구하는 단추가 없음(읽기 전용)`, collapse.peekButtons);
           check(collapse.drawableHeight >= 140, `${viewport.name} 접으면 그릴 수 있는 도화지가 남음`, { drawableHeight: collapse.drawableHeight });
           check(collapse.probeHitsCanvas, `${viewport.name} 접은 상태에서 도화지에 실제로 그릴 수 있음`, collapse);
           check(collapse.reExpandReachable?.hitsSelf, `${viewport.name} 몽그리를 다시 펼칠 수 있음`, collapse.reExpandReachable);

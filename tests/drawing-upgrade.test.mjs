@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { estimateDocumentBytes, estimateStrokeBytes, SHAPE_KINDS, STROKE_TOOLS, STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, validateDrawDocument } from "../lib/drawing-model.ts";
 import { isMirrorOf, mirrorOp, undoGroupSize } from "../lib/symmetry.ts";
-import { clampView, coverPaper, IDENTITY_VIEW, pinchView, zoomView } from "../lib/canvas-view.ts";
+import { clampView, coverPaper, IDENTITY_VIEW, minScaleFor, pinchView, zoomView } from "../lib/canvas-view.ts";
 
 const stroke = (suffix, overrides = {}) => ({
   opId: `op_${suffix}`.padEnd(12, "0"),
@@ -152,14 +152,21 @@ test("the paper always covers its frame, and an overflowing paper pans at 1x wit
   assert.equal(clampView({ scale: 1, x: 50, y: 20 }, ...box).y, 0);
 });
 
-test("넓은 도화지는 1/span까지 축소되고, 그 아래로는 내려가지 않는다", () => {
+test("넓은 도화지는 전체가 보이는 배율보다 한 칸 더 줄어들고, 그 아래로는 내려가지 않는다", () => {
   // 100%에서 종이는 틀의 3배다(1180×754 화면 → 3540×2262 종이).
   const box = [1180, 754, 3540, 2262];
-  const limits = { min: 1 / 3, max: 4 };
-  // 끝까지 축소하면 종이 전체가 틀에 딱 맞는다.
-  const out = clampView({ scale: 0.01, x: 0, y: 0 }, ...box, limits);
-  assert.ok(Math.abs(out.scale - 1 / 3) < 1e-9, `축소 하한: ${out.scale}`);
-  assert.equal(Math.round(3540 * out.scale), 1180);
+  const limits = { min: minScaleFor(3), max: 4 };
+  // 1/span이면 종이 전체가 틀에 딱 맞는다.
+  assert.equal(Math.round(3540 / 3), 1180);
+  // 바닥은 거기서 한 칸(1.5배) 더 아래다 — 종이 끝과 그 바깥 바탕이 보인다(2026-09-23 사용자 요청).
+  const out = clampView({ scale: 0.001, x: 0, y: 0 }, ...box, limits);
+  assert.ok(Math.abs(out.scale - 1 / 3 / 1.5) < 1e-9, `축소 하한: ${out.scale}`);
+  assert.ok(3540 * out.scale < 1180, "바닥에서는 종이가 틀보다 좁다");
+  // 종이가 틀보다 작으면 왼쪽 위에 붙지 않고 가운데에 놓인다.
+  assert.equal(out.x, (1180 - 3540 * out.scale) / 2);
+  assert.equal(out.y, (754 - 2262 * out.scale) / 2);
+  // 손으로 밀어도 가운데를 벗어나지 않는다 — 옮길 여유가 없는 상태다.
+  assert.equal(clampView({ scale: out.scale, x: -900, y: 400 }, ...box, limits).x, out.x);
   // 한계를 주지 않으면 예전처럼 1배 아래로 내려가지 않는다(옛 작품 보호).
   assert.equal(clampView({ scale: 0.01, x: 0, y: 0 }, ...box).scale, 1);
   // 확대 상한은 그대로 4배, 이동은 종이 밖을 보여 주지 않는다.
