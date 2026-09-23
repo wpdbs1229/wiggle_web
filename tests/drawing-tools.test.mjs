@@ -212,10 +212,15 @@ test("도화지 비율은 문서가 정하고, 화면·래스터·저장 이미�
   // 옆으로 넓은 화면에서는 종이가 틀을 덮고 넘친 만큼 옮겨 본다(2026-09-15 "도화지 크기는 화면을 꽉채우지 안 잖아").
   assert.match(studio, /if \(next < from \|\| activePoints\.current\.size \|\| artworkRef\.current\?\.status === "complete" \|\| conflictDraftRef\.current\) return;/);
   assert.match(studio, /growDrawOps\(current\.ops, from, next\)/);
-  // 도화지는 100%에서 화면 span장 너비다(2026-09-20 큰 도화지). 끝까지 축소하면 1/span에서 전체가 보인다.
+  // 도화지는 100%에서 화면 span장 너비다(2026-09-20 큰 도화지). 1/span에서 전체가 틀에 맞고,
+  // 거기서 한 칸 더 줄이면 종이 끝과 그 바깥이 보인다(2026-09-23 사용자 요청).
   assert.match(studio, /const screenPaper = coverPaper\(frame\.width, frame\.height, documentHeight\(documentState\)\);/);
   assert.match(studio, /const paper = \{ width: screenPaper\.width \* span, height: screenPaper\.height \* span \};/);
-  assert.match(studio, /min: 1 \/ span, max: MAX_SCALE/);
+  assert.match(studio, /min: minScaleFor\(span\), max: MAX_SCALE/);
+  // 축소 단추가 멈추는 자리도 같은 값이어야 한다 — 따로 적으면 둘이 어긋난다.
+  assert.match(studio, /disabled=\{view\.scale <= minScaleFor\(span\) \+ 0\.001\}/);
+  // 종이가 틀보다 작아지므로 바탕이 종이와 같은 흰색이면 종이 끝이 보이지 않는다.
+  assert.match(css, /\.studio \{ --paper-backdrop:#e4e9e3; \}/);
   assert.match(studio, /clampDocumentHeight\(DOCUMENT_SIZE \* height \/ width\)/);
 });
 

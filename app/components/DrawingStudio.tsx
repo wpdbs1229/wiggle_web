@@ -7,7 +7,7 @@ import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas } from "@/l
 import { mirrorOp } from "@/lib/symmetry";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
 import { DrawingInputMode, INPUT_MODE_EVENT } from "@/lib/input-mode";
-import { CanvasView, clampView, coverPaper, IDENTITY_VIEW, MAX_SCALE, pinchView, zoomView } from "@/lib/canvas-view";
+import { CanvasView, clampView, coverPaper, IDENTITY_VIEW, MAX_SCALE, minScaleFor, pinchView, zoomView } from "@/lib/canvas-view";
 import { lessonBySlug, Lesson } from "@/lib/lesson-content";
 import { guideMarksForVariant } from "@/lib/lesson-guide-variants";
 import { ArrowLeftIcon, CheckIcon, ChevronUpIcon, HandIcon, MoreHorizontalIcon, Redo2Icon, Trash2Icon, Undo2Icon } from "./StudioIcons";
@@ -1651,9 +1651,10 @@ export function DrawingStudio() {
   }, [artwork?.id]);
   const span = documentSpan(documentState);
   const screenPaper = coverPaper(frame.width, frame.height, documentHeight(documentState));
-  // 도화지는 100%에서 화면 span장 너비다. 끝까지 축소하면(1/span) 도화지 전체가 보인다.
+  // 도화지는 100%에서 화면 span장 너비다. 1/span이면 도화지 전체가 틀에 맞고,
+  // 거기서 한 칸 더 줄이면 종이 끝과 그 바깥 바탕까지 보인다(2026-09-23 사용자 요청).
   const paper = { width: screenPaper.width * span, height: screenPaper.height * span };
-  scaleLimitsRef.current = useMemo(() => ({ min: 1 / span, max: MAX_SCALE }), [span]);
+  scaleLimitsRef.current = useMemo(() => ({ min: minScaleFor(span), max: MAX_SCALE }), [span]);
   // 화면에 보이는 도화지 크기(배율 포함)에 맞춰 래스터를 잡는다. 바뀌면 아래 effect가 다시 그린다.
   const rasterWidth = rasterWidthFor(paper.width * view.scale, documentHeight(documentState));
   rasterWidthRef.current = rasterWidth;
@@ -1725,7 +1726,7 @@ export function DrawingStudio() {
     viewRef.current = next;
     setView(next);
   }
-  // 확대·축소 단추는 도화지 가운데를 붙잡고 1.5배씩 움직인다. 1배(화면 맞춤) 아래로는 줄이지 않는다.
+  // 확대·축소 단추는 도화지 가운데를 붙잡고 1.5배씩 움직인다. 바닥은 도화지 전체보다 한 칸 더 작은 배율이다.
   function zoomBy(factor: number) {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -3028,7 +3029,7 @@ export function DrawingStudio() {
             <div className="zoom-controls" role="group" aria-label="확대와 축소">
               <button type="button" aria-label="확대" title="확대" disabled={view.scale >= MAX_SCALE - 0.001} onClick={() => zoomBy(1.5)}>+</button>
               <button type="button" className="zoom-fit" aria-label={`지금 ${Math.round(view.scale * 100)}%, 원래 크기로`} title="원래 크기로" disabled={Math.abs(view.scale - 1) < 0.01} onClick={resetViewToFit}>{Math.round(view.scale * 100)}%</button>
-              <button type="button" aria-label="축소" title="축소" disabled={view.scale <= 1 / span + 0.001} onClick={() => zoomBy(1 / 1.5)}>−</button>
+              <button type="button" aria-label="축소" title="축소" disabled={view.scale <= minScaleFor(span) + 0.001} onClick={() => zoomBy(1 / 1.5)}>−</button>
             </div>
           </div>
         </section>
