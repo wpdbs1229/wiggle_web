@@ -112,3 +112,18 @@ test("몽그리 머리의 원형 규칙은 닫기(×)만 잡고 글자 단추인
   // 접기 단추는 글자가 줄바꿈되지 않고 제 폭을 가져야 한다.
   assert.match(css, /\.grimi-collapse \{[^}]*white-space:nowrap;/);
 });
+
+test("보관함의 세 겹 그리드는 줄어들 수 있는 칼럼을 가진다", async () => {
+  const css = await read("../app/globals.css");
+  /* 회귀(2026-09-23 실측): 칼럼을 적지 않으면 암묵 `auto` 칼럼이 안쪽 썸네일 줄의
+     max-content(886px)까지 부푼다. html이 잘라 내므로 가로 스크롤은 생기지 않고
+     내용만 오른쪽으로 사라진다 — 390px에서 머리·무대가 882px로 잡혀 단추가 화면 밖에 있었다.
+     browser-check가 /student/archive를 방문하지 않아 게이트에 걸리지 않았으므로 여기서 묶는다. */
+  for (const rule of [
+    /\.archive-book-page \{ min-height:100dvh; display:grid; grid-template-columns:minmax\(0,1fr\);/,
+    /\.archive-stage \{ display:grid; grid-template-columns:minmax\(0,1fr\); place-items:center;/,
+    /\.archive-book \{ width:min\(1500px,100%\); display:grid; grid-template-columns:minmax\(0,1fr\);/,
+  ]) assert.match(css, rule);
+  // 썸네일 줄이 가로 스크롤러라는 전제가 깨지면 위 칼럼만으로는 부족해진다.
+  assert.match(css, /\.archive-book-list>ul \{ display:flex;[^}]*overflow-x:auto;/);
+});

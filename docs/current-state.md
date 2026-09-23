@@ -33,6 +33,23 @@
 - 새 작업을 시작하기 전에 `git status --short`와 최근 커밋을 확인한다.
 - 로컬·브랜치 커밋은 게이트를 통과했어도 `main` 반영(사용자 push) 전까지 배포 상태로 간주하지 않는다.
 
+## 2026-09-23 보관함이 390px에서 잘리던 것 수정 (`claude/zoom-past-canvas-20260923`)
+
+- **증상**: `/student/archive`가 좁은 화면에서 오른쪽으로 잘려 나갔다. 뷰포트 390px인데
+  `.app-header`와 `.archive-stage`가 **882px**로 잡혔다. `html`이 잘라 내므로 가로 스크롤은
+  생기지 않고 내용만 사라진다 — 「수업 마치기」·「다시 보기」가 화면 밖이라 누를 수 없었다.
+- **원인**: `.archive-book-page` / `.archive-stage` / `.archive-book` 세 겹이 모두
+  `grid-template-columns` 없이 `display:grid`다. 암묵 `auto` 칼럼이 안쪽 썸네일 줄의
+  max-content(886px)까지 부푸는 전형적인 grid blowout이다. 세 곳에 `minmax(0,1fr)`을 줬다.
+- **왜 여태 안 걸렸나**: `scripts/browser-check.mjs`가 `/student/archive`를 **방문하지 않는다.**
+  모바일 게이트의 사각지대다. 그래서 `tests/responsive-drawing-ui.test.mjs`에 CSS 계약 시험을 넣었다.
+- **검증**: 320×568 / 390×844 / 844×390 / 1440×900 실측 — 머리·무대 폭이 뷰포트와 같고,
+  가로 스크롤 없음, 머리 단추와 「다시 보기」·넘기기가 모두 화면 안, 터치 목표 44px 이상.
+  남는 넘침은 썸네일 줄뿐인데 이건 진짜 가로 스크롤러다(390에서 내용 886 / 밀 수 있는 거리 528 실측).
+  `npm test` 377/377, typecheck·lint(경고 14)·build·`git diff --check`·`browser-check` 통과.
+- 남은 위험: 보관함은 여전히 browser-check 경로 밖이다. 다음에 이 페이지를 크게 손볼 때
+  (그림책 만들기 작업) 실제 방문 단계를 추가하는 것이 맞다.
+
 ## 2026-09-23 몽그리 접기 단추 글자 잘림 재수정 (`claude/zoom-past-canvas-20260923`)
 
 - `.grimi-head>button`의 **원형 규칙은 닫기(×) 전용**인데 `:not(.grimi-collapse)`가 없어

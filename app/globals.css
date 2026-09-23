@@ -2096,14 +2096,17 @@ body {
    그래서 책은 그 비율(1810/869)을 지키고, 쪽 내용은 그 사각형 안에 얹는다. 쪽을 따로 늘리지 않는다.
 
    반응형: 760px 미만에서는 양면 책을 억지로 줄이지 않고 한 장 레이아웃으로 갈아탄다(인계 지시). */
-.archive-book-page { min-height:100dvh; display:grid; grid-template-rows:auto auto minmax(0,1fr); background:#d9e7cf; }
+/* 칼럼을 적지 않으면 암묵 `auto` 칼럼이 안쪽 썸네일 줄의 max-content(850px)까지 부푼다.
+   html이 잘라 내 가로 스크롤은 안 생기고 내용만 오른쪽으로 사라진다 — 390px에서 실제로 그랬다
+   (2026-09-23 실측: 뷰포트 390 / 머리·무대 882). 세 단계 모두 줄어들 수 있는 칼럼을 준다. */
+.archive-book-page { min-height:100dvh; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr); background:#d9e7cf; }
 .archive-book-page>.app-header { margin:0; padding:12px clamp(16px,2.2vw,34px); background:#fcfaf3; border-bottom:1px solid #cbdcbf; }
 .archive-book-error { margin:12px clamp(16px,2.2vw,34px) 0; }
 .archive-finish { background:#ffd25c; border-color:#e8bf50; color:#6b4a00; font-weight:900; }
-.archive-stage { display:grid; place-items:center; min-height:0; padding:clamp(12px,2.2vh,28px) clamp(16px,3vw,64px) clamp(16px,3vh,40px); }
+.archive-stage { display:grid; grid-template-columns:minmax(0,1fr); place-items:center; min-height:0; padding:clamp(12px,2.2vh,28px) clamp(16px,3vw,64px) clamp(16px,3vh,40px); }
 
 /* ── 좁은 화면(기본): 한 장 레이아웃. 책 그림을 쓰지 않는다 ───────────────────── */
-.archive-book { width:min(1500px,100%); display:grid; gap:14px; }
+.archive-book { width:min(1500px,100%); display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
 .archive-book-shell { display:none; }
 .archive-book-list>h1 { position:relative; margin:0 0 16px; font-size:clamp(20px,2.1vw,32px); letter-spacing:-.045em; color:#184b35; }
 .archive-book-list>h1:after { content:""; position:absolute; left:0; bottom:-9px; width:72px; height:5px; border-radius:999px; background:#ffd25c; }
