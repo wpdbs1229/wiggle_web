@@ -133,7 +133,7 @@
 - 신규 개발 GitHub: `https://github.com/wwwiggle/new_wiggle`
 - 기존 운영 연결 GitHub: `https://github.com/yonghwan86/wiggle_web` — Vercel 프로젝트의 Git 연결을 바꾸기 전까지 현재 운영 배포 원본으로 유지한다.
 - 현재 clone의 Git 원격: `origin`은 신규 개발 GitHub다. 기존 폴더의 `legacy-origin`은 이번 clone에 추가하지 않았다. GitHub 접근은 사용자 승인에 따라 `qudcks1940` 계정 권한을 사용할 수 있다(자격증명은 저장소에 기록하지 않는다).
-- **공개 운영: `https://wiggleweb.vercel.app`** — Vercel 프로젝트 `wiggle-web`, GitHub `main` push 시 자동 배포(서울 리전). `main` push는 사용자만 실행한다.
+- **공개 운영: `https://www.kkumtle.app`** — Vercel 프로젝트 `wiggle-web`이 **`yonghwan86/wiggle_web`(원격 `origin`)의 `main`**을 자동 빌드·배포한다(서울 리전). `wwwiggle/new_wiggle`에만 올린 것은 운영에 나가지 않는다(2026-09-23 실측). 두 저장소는 함께 최신으로 유지한다 — `origin`은 `fork`+PR, `wwwiggle`은 직접 push다.
 - 옛 공개 Sites `https://wiggle-classroom-web.chan1940.chatgpt.site`는 2026-08-19 재플랫폼으로 은퇴 — 사이트·데이터는 보존(폐기는 사용자 승인 필요), 신규 서버는 데이터 이전 없이 새로 시작했다.
 - 운영 저장소: DB는 Turso(libSQL), 그림 파일은 Cloudflare R2 버킷 `wiggle-artworks`(S3 API). 운영 자격증명은 Vercel 대시보드에서만 관리한다.
 
