@@ -2066,7 +2066,11 @@ body {
  * 사용자: "도화지 크기는 화면을 꽉채우지 안 잖아". .canvas-wrap은 이제 도화지 비율과 상관없이 자리를 꽉 채우는 틀이고,
  * 그 안의 .canvas-stack(종이)은 틀을 빈틈 없이 덮는 크기(coverPaper)를 JS가 정한다. 이미 그린 그림이 틀보다 옆으로 좁은
  * 비율이면 종이가 틀 폭에 맞춰 세로로 넘치고 스크롤·두 손가락으로 옮겨 본다(세로로 긴 틀은 종이를 늘려 딱 맞춘다). */
-.studio .canvas-zone .canvas-wrap,.studio .canvas-zone.has-canvas-status .canvas-wrap { width:100%; height:100%; max-width:none; max-height:none; aspect-ratio:auto; background:#fff; overflow:hidden; overflow:clip; }
+.studio .canvas-zone .canvas-wrap,.studio .canvas-zone.has-canvas-status .canvas-wrap { width:100%; height:100%; max-width:none; max-height:none; aspect-ratio:auto; background:var(--paper-backdrop); overflow:hidden; overflow:clip; }
+/* 틀 바탕(2026-09-23). 도화지 전체가 보이는 배율보다 더 줄이면 종이가 틀보다 작아지는데,
+   바탕이 종이와 같은 흰색이면 어디까지가 종이인지 보이지 않는다. 그보다 더 줄일 수 없을 때는
+   종이가 틀을 덮으므로 이 색은 나타나지 않는다. */
+.studio { --paper-backdrop:#e4e9e3; }
 /* clip: 넘친 종이가 있으면 hidden 틀은 스크립트·초점 이동으로 몰래 스크롤돼 transform과 어긋난다. clip은 스크롤 자체가 없다. */
 .studio .canvas-stack { inset:auto; left:0; top:0; }
 /* 읽어 주는 화면에만 들리는 글. 이미 여러 화면이 .sr-only를 쓰고 있었는데 규칙이 없어 그냥 보였다. */

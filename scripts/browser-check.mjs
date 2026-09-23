@@ -586,6 +586,11 @@ async function main() {
           } else {
             rect = await probeCanvas();
             const pinchCenter = at(rect, 0.5, 0.5);
+            /* 이 검사는 위에서 축소 단추를 끝까지 누른 상태에서 시작한다. 그 바닥 배율은 도화지 넓이(span)와
+               축소 한계가 바뀌면 함께 바뀌므로, 절대 숫자로 재면 핀치와 상관없는 변경에 깨진다
+               (2026-09-23 축소 한계를 한 칸 내렸을 때 실제로 깨짐). 핀치 전후를 비교한다. */
+            const scaleNow = `(() => { const stack = document.querySelector('.canvas-stack'); return new DOMMatrix(getComputedStyle(stack).transform).a; })()`;
+            const beforePinch = await evaluate(cdp, session, scaleNow);
             const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((point, index) => ({ x: Math.round(point.x), y: Math.round(point.y), id: index + 1 })) }, session);
             await touch("touchStart", [{ x: pinchCenter.x - 15, y: pinchCenter.y }]);
             await touch("touchMove", [{ x: pinchCenter.x - 25, y: pinchCenter.y }]);
@@ -593,8 +598,8 @@ async function main() {
             for (let step = 1; step <= 5; step += 1) await touch("touchMove", [{ x: pinchCenter.x - 25 - step * 14, y: pinchCenter.y }, { x: pinchCenter.x + 25 + step * 14, y: pinchCenter.y }]);
             await touch("touchEnd", []);
             await sleep(250);
-            const zoomScale = await evaluate(cdp, session, `(() => { const stack = document.querySelector('.canvas-stack'); const matrix = new DOMMatrix(getComputedStyle(stack).transform); return matrix.a; })()`);
-            check(zoomScale > 1.05, `${viewport.name} 손가락 두 개 핀치로 확대됨`, zoomScale);
+            const zoomScale = await evaluate(cdp, session, scaleNow);
+            check(zoomScale > beforePinch * 1.5, `${viewport.name} 손가락 두 개 핀치로 확대됨`, { beforePinch, zoomScale });
             await evaluate(cdp, session, `(() => { const reset = document.querySelector('.zoom-fit'); if (reset && !reset.disabled) reset.click(); })()`);
             await sleep(200);
           }
