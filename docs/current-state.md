@@ -1,6 +1,6 @@
 # Wiggle Web 현재 상태
 
-> 마지막 갱신: 2026-09-21
+> 마지막 갱신: 2026-09-23
 > 목적: 긴 대화가 압축되거나 담당 AI가 바뀌어도 실제 구현·검증·배포 상태를 잃지 않기 위한 기준 문서
 
 ## 상태 기준
@@ -32,6 +32,27 @@
 - `git reset --hard`, `git checkout --`, 광범위한 삭제를 사용하지 않는다.
 - 새 작업을 시작하기 전에 `git status --short`와 최근 커밋을 확인한다.
 - 로컬·브랜치 커밋은 게이트를 통과했어도 `main` 반영(사용자 push) 전까지 배포 상태로 간주하지 않는다.
+
+## 2026-09-23 학급 만들기도 번호·이름 칸으로 (`claude/create-class-roster-rows-20260923`)
+
+- **왜**: 학급을 만든 뒤 학생을 더할 때는 번호 칸·이름 칸이었는데, 학급을 만들 때만
+  「한 줄에 번호 이름」 텍스트 상자였다. 입력이 두 가지면 선생님이 같은 일을 두 번 배운다
+  (2026-09-23 사용자 요청).
+- **한 컴포넌트로 합쳤다**: `app/components/RosterRowsEditor.tsx`가 두 화면의 공통 편집기다.
+  `TeacherRosterSettings.tsx`에 있던 줄 편집·붙여넣기·번호 자동 채움을 그대로 옮겼고,
+  `TeacherApp.tsx`의 `RosterField`(textarea)와 `parseRosterText` 사용은 없앴다.
+  편집기가 `./TeacherRosterSettings.css`를 직접 import하므로 설정 화면을 함께 묶지 않아도 모양이 선다.
+- **대시보드는 `.teacher-workspace` 밖이다**. 그 CSS의 색 토큰(`--tw-line` 등)과 44px 칸 규칙이
+  모두 `.teacher-workspace` 안에서만 걸려 있어, 그대로 쓰면 테두리가 사라지고 칸이 44px 아래로 내려간다.
+  `app/globals.css`의 `.create-class-roster`에서 같은 값을 다시 준다.
+- 320px에서 번호 칸 88px이 이름 칸을 84px로 밀어서, 편집기 CSS에 `max-width:420px` 한 줄을 더해
+  번호 칸을 56px로 줄였다. 두 화면이 같은 파일을 쓰므로 설정 화면도 함께 고쳐진다.
+- 쓰지 않게 된 `.roster-field/.roster-hint/.roster-errors` CSS는 지웠다.
+- **검증**: typecheck·lint(경고 14, 기존 수준)·`npm test` 375/375, `git diff --check`,
+  `npm run build` 성공. `node scripts/browser-check.mjs http://localhost:3310`(이 트리를 빌드해 띄운 서버) 전항목 통과.
+  학급 만들기 폼은 320×568 / 390×844 / 844×390에서 실측: 가로 스크롤 없음, 지우기·「학생 한 명 더」 44px,
+  이름 칸 잘림 없음, 테두리 `#dce1de` 적용, 이름 두 개를 넣으면 줄이 자동으로 늘고 「2명 확인」이 뜬다.
+- 남은 위험: 없음. 서버의 `createClassroom` 검증(`parseRoster`)은 건드리지 않았다 — 화면만 바뀌었다.
 
 ## 2026-09-22 참여 코드를 거듭 틀리면 그 **기기만** 잠깐 쉬게 함 (`claude/archive-book-20260920`)
 

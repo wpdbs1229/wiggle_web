@@ -1678,10 +1678,6 @@ body {
 /* ── 2026-09-07 교사 학급 명단 ───────────────────────────────────────────────
  * 번호와 실명은 담임 교사 화면에만 나타난다. 학생 화면·가족 공유·AI 요청에는 싣지 않는다.
  */
-.roster-field { display:grid; gap:6px; }
-.roster-field textarea { min-height:120px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; font-size:16px; line-height:1.6; resize:vertical; }
-.roster-hint { color:var(--secondary); font-size:12px; font-weight:800; }
-.roster-errors { margin:0; padding-left:18px; color:#9f2f2f; font-size:12px; font-weight:800; }
 .roster-privacy { margin:2px 0 0; color:var(--secondary); font-size:12px; font-weight:750; line-height:1.5; }
 .roster-add { margin-top:18px; padding:16px; display:grid; gap:10px; border:1px solid var(--border); border-radius:18px; background:#fff; }
 .roster-add button { justify-self:start; }
@@ -2240,3 +2236,16 @@ body {
   .entry-code-layout.is-waiting>.entry-wait-panel { display:none; }
 }
 @media (min-width:760px) { .entry-wait-inline>img { width:56px; height:56px; } }
+
+/* 학급 만들기 폼의 명단 칸(2026-09-23). 만든 뒤 학생을 더할 때와 같은 편집기를 쓴다 —
+   입력이 두 가지면 선생님이 두 번 배운다. 모양은 설정 화면 것(TeacherRosterSettings.css)을 따른다. */
+.create-class-roster { display:grid; gap:8px; }
+.create-class-roster-label { font-weight:800; }
+/* 편집기 CSS의 색 토큰과 칸 크기는 `.teacher-workspace` 안에서만 걸려 있다. 대시보드는 그 밖이라
+   여기서 같은 값을 다시 준다 — 없으면 테두리가 사라지고 칸 높이가 44px 아래로 내려간다. */
+.create-class-roster { --tw-muted:#68716c; --tw-green:#315d46; --tw-line:#dce1de; }
+.create-class-roster .trs-row input { min-height:44px; width:100%; }
+.create-class-roster .trs-row-seat { font-variant-numeric:tabular-nums; text-align:center; }
+.create-class-roster .trs-row-remove { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0; border:0; background:none; color:var(--tw-muted); }
+.create-class-roster .trs-row-remove:disabled { opacity:.3; }
+.create-class-roster .trs-row-add { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:8px 12px; border:1px solid var(--tw-line); border-radius:6px; background:#fff; font-size:14px; font-weight:600; cursor:pointer; }
