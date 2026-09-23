@@ -597,9 +597,6 @@ export function DrawingStudio() {
   // 도구로 이동하는 플로팅 버튼이 정작 도구 패널·몽그리 시트 위까지 떠서
   // 320px 세로에서 전체 지우기·탈출 버튼을 가렸다. 도구가 이미 보이면 숨긴다.
   const [coaching, setCoaching] = useState<(StudentCoaching & { eventId: string }) | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [answerLabel, setAnswerLabel] = useState("");
-  const [answerSaved, setAnswerSaved] = useState(false);
   const [childChoice, setChildChoice] = useState("");
   const [runSerial] = useState(createSerialTaskQueue);
   const [saveBranchId] = useState(() => `branch_${crypto.randomUUID().replaceAll("-", "")}`);
@@ -2502,10 +2499,9 @@ export function DrawingStudio() {
     setGrimiCollapsed(false);
     setGrimiLoading(true);
     setGrimiError("");
+    // 다시 부르면 앞 질문은 아이가 답할 일이 없다. 열어 둔 채 쌓지 않고 닫는다.
+    closeCoachingEvent(coaching?.eventId);
     setCoaching(null);
-    setAnswer("");
-    setAnswerLabel("");
-    setAnswerSaved(false);
     setGuidePhase("independent");
     window.clearTimeout(saveTimer.current);
     // 선행 저장은 반드시 try 안에서 기다린다. 밖에서 던지면 grimiLoading이 영구히 잠긴다.
@@ -2542,35 +2538,15 @@ export function DrawingStudio() {
     }
   }
 
-  async function recordCoachingAnswer() {
-    if (!artwork || !canvasRef.current || !coaching || !answer.trim() || conflictDraftRef.current) return;
-    setGrimiLoading(true);
-    setGrimiError("");
-    try {
-      const response = await studentFetch("/api/ai/coaching", {
-        method: "POST",
-        body: JSON.stringify({
-          action: "answer",
-          artworkId: artwork.id,
-          eventId: coaching.eventId,
-          answer,
-          newElements: [answerLabel || answer].filter(Boolean),
-          currentStep: artwork.currentStep,
-          document: documentState,
-          imageDataUrl: imageData(canvasRef.current, 1024),
-        }),
-      });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "과정을 남기지 못했어요.");
-      // 서버 응답을 기다리는 동안 아이가 더 그렸을 수 있다. 렌더 시점 문서를 넘기면 그 선이 사라진다.
-      setAnswerSaved(true);
-      setChildChoice(answer);
-      void save(undefined, { currentStep: currentStepRef.current });
-    } catch (cause) {
-      setGrimiError(cause instanceof Error ? cause.message : "과정을 남기지 못했어요.");
-    } finally {
-      setGrimiLoading(false);
-    }
+  /* 몽그리 질문은 보여 주기만 한다(2026-09-23 사용자 결정). 아이가 답을 보낼 일이 없으니
+   * 열린 도움 기록은 이 함수로만 닫는다. 답을 두 번 보내 409 `이미 처리한 도움 기록이에요`가
+   * 나던 왕복 자체가 사라진다. */
+  function closeCoachingEvent(eventId?: string) {
+    if (!eventId || !artwork) return;
+    void studentFetch("/api/ai/coaching", {
+      method: "POST",
+      body: JSON.stringify({ action: "dismiss", artworkId: artwork.id, eventId }),
+    }).catch(() => undefined);
   }
 
   function saveLessonStepProgress(next: LessonStepProgress) {
@@ -2670,15 +2646,7 @@ export function DrawingStudio() {
   }
 
   function dismissGrimi() {
-    if (coaching?.eventId && artwork)
-      void studentFetch("/api/ai/coaching", {
-        method: "POST",
-        body: JSON.stringify({
-          action: "dismiss",
-          artworkId: artwork.id,
-          eventId: coaching.eventId,
-        }),
-      }).catch(() => undefined);
+    closeCoachingEvent(coaching?.eventId);
     closeGrimiState();
   }
 
@@ -2739,11 +2707,10 @@ export function DrawingStudio() {
   const customColor = !PALETTE.includes(selectedColor);
   /* 몽그리 표정(2026-09-12). 어떤 얼굴을 쓸지는 **UI 상태로만** 정한다 —
    * AI가 쓴 문장에서 감정을 추측해 고르지 않는다(사용 제안서 2026-09-09).
-   * 우선순위: 오류 → 생각 중 → 접힌 제안 → 답을 고른 뒤 → 질문. */
+   * 우선순위: 오류 → 생각 중 → 접힌 제안 → 질문. */
   const grimiFace = grimiError ? "reassuring"
     : grimiLoading ? "thinking"
     : grimiCollapsed && coaching ? "suggesting"
-    : coaching && answer ? "listening"
     : coaching ? "curious"
     : "listening";
 
@@ -2832,10 +2799,6 @@ export function DrawingStudio() {
                 <div className="spoken-prompt">
                   <b>{coaching.nextAction}</b>
                 </div>
-                <button className="button primary full child-primary-action" disabled={grimiLoading || answerSaved || !answer} onClick={recordCoachingAnswer}>
-                  <span aria-hidden="true">✅</span>
-                  {answerSaved ? "과정에 남겼어요" : "그렸어요"}
-                </button>
               </div>
             ) : (
               <div className="grimi-scroll">
@@ -2850,51 +2813,23 @@ export function DrawingStudio() {
                 {grimiError && <p className="error-box">{grimiError}</p>}
                 {coaching && !grimiLoading && (
                   <div className="grimi-coaching">
+                    {/* 관찰 한마디 → 궁금한 점 → 지금 그려 볼 일. 아이는 읽고 바로 그리러 간다.
+                        growth_event는 판정이 아니라 관찰 문장이라 칭찬 금지 규칙과 부딪히지 않는다. */}
+                    {coaching.growthEvent && <p className="grimi-observed">{coaching.growthEvent}</p>}
                     <p className="eyebrow">몽그리가 궁금해요</p>
                     <div className="spoken-prompt">
                       <h2>{coaching.question}</h2>
                     </div>
-                    <div className="grimi-chips">
-                      {coaching.choices.map((choice) => (
-                        <button
-                          aria-pressed={answer === choice.answer}
-                          onClick={() => {
-                            setAnswer(choice.answer);
-                            setAnswerLabel(choice.label);
-                            setAnswerSaved(false);
-                          }}
-                          key={choice.label}
-                        >
-                          <span>{choice.emoji}</span>
-                          {choice.label}
-                        </button>
-                      ))}
-                    </div>
-                    <label className="direct-answer">
-                      직접 말하기
-                      <input
-                        maxLength={80}
-                        value={answerLabel ? "" : answer}
-                        onChange={(event) => {
-                          setAnswer(event.target.value);
-                          setAnswerLabel("");
-                          setAnswerSaved(false);
-                        }}
-                        placeholder="내 생각을 짧게 적어도 돼요"
-                      />
-                    </label>
-                    {answer && (
-                      <div className="next-action">
-                        <small>이제 그려 볼 일</small>
-                        <div className="spoken-prompt">
-                          <b>{coaching.nextAction}</b>
-                        </div>
-                        <button className="button primary full child-primary-action" disabled={grimiLoading || answerSaved} onClick={recordCoachingAnswer}>
-                          <span aria-hidden="true">✅</span>
-                          {answerSaved ? "과정에 남겼어요" : "그린 뒤 ‘했어요’"}
-                        </button>
+                    <div className="next-action">
+                      <small>이제 그려 볼 일</small>
+                      <div className="spoken-prompt">
+                        <b>{coaching.nextAction}</b>
                       </div>
-                    )}
+                    </div>
+                    <button type="button" className="button secondary full grimi-again" disabled={grimiLoading} onClick={() => void askGrimi()}>
+                      <span aria-hidden="true">✨</span>
+                      다른 것도 물어보기
+                    </button>
                   </div>
                 )}
               </div>
