@@ -32,7 +32,8 @@ const nextConfig: NextConfig = {
   // 저장소의 제품·보안 규칙 AGENTS.md를 Next가 실행 때마다 자동 수정하지 않게 한다.
   agentRules: false,
   // libSQL 클라이언트는 네이티브 바인딩을 포함하므로 서버 번들에 넣지 않는다.
-  serverExternalPackages: ["@libsql/client", "libsql"],
+  serverExternalPackages: ["@libsql/client", "libsql", "@resvg/resvg-js", "sharp"],
+  outputFileTracingIncludes: { "/api/teacher/*": ["./config/rubrics/**/*", "./public/fonts/**/*"] },
   // dev 도구 부유 버튼이 어린이용 UI의 히트 테스트(브라우저 실측)를 가린다.
   devIndicators: false,
   async headers() {

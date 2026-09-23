@@ -36,7 +36,9 @@ test("the first correction clears the previous error — every key press, erase 
 });
 
 test("a wrong code offers calling the teacher (there is no visible class-code field — it comes from the landing page or QR)", () => {
-  assert.match(join, /errorKind === "code" && !teacherCallOpen/);
+  // 2026-09-21 잠금이 생기며 조건에 "locked"가 더해졌다. 지키려는 뜻은 그대로다 —
+  // 코드가 틀렸을 때(그리고 잠겼을 때도) 아이가 선생님을 부를 길이 있어야 한다.
+  assert.match(join, /\(errorKind === "code" \|\| errorKind === "locked"\) && !teacherCallOpen/);
   assert.match(join, /🙋<\/span>선생님 불러요/);
   assert.match(join, /손을 들고 선생님을 불러요\./);
   assert.match(join, /참여 코드를 다시 알려 주실 거예요\./);
@@ -44,7 +46,8 @@ test("a wrong code offers calling the teacher (there is no visible class-code fi
 
 test("the code screen submits only four digits and the animal screen only after a pick", () => {
   assert.match(join, /export const ENTRY_CODE_LENGTH = 4;/);
-  assert.match(join, /disabled=\{busy \|\| codeInput\.length !== ENTRY_CODE_LENGTH\}/);
+  // 2026-09-22 잠금이 생기며 waiting 조건이 앞에 붙었다. 뜻은 그대로다 — 네 자리가 아니면 못 보낸다.
+  assert.match(join, /disabled=\{waiting \|\| busy \|\| codeInput\.length !== ENTRY_CODE_LENGTH\}/);
   assert.match(join, /disabled=\{busy \|\| !chosen\}/);
   assert.match(join, /autoComplete="one-time-code"/);
 });

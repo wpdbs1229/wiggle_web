@@ -76,7 +76,7 @@ test("움직임 줄이기에서는 3D 회전 없이 바로 바뀐다", async () 
   const [source, css] = await Promise.all([read("../app/components/Archive.tsx"), read("../app/globals.css")]);
   assert.match(source, /prefers-reduced-motion: reduce/);
   assert.match(source, /if \(reduced\) \{ finish\(\); return; \}/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\n  \.archive-leaf \{ display:none; \}/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\r?\n  \.archive-leaf \{ display:none; \}/);
 });
 
 test("책 좌표는 실제 에셋을 재서 넣었다", async () => {

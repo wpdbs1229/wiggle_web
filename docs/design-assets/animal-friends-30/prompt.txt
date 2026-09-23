@@ -1,0 +1,39 @@
+Create a polished CHARACTER CATALOG SHEET for Wiggle children's drawing app, expanding the ten plush animals in reference to EXACTLY THIRTY distinct named animal portraits. This is a character exploration board, NOT a UI screen. Reference provides visual identity of first ten. All thirty share the same premium cuddly plush toy style, short velvet fur, rounded baby proportions, soft glossy black eyes, tiny friendly smiling mouths, subtle blush, consistent warm lighting and same portrait size. Preserve species recognizability. Plain warm ivory background, forest green Korean labels; no classroom, logo, mascot, buttons, decoration, frames or extra portraits.
+Target dimensions 2400x2200, spacious exactly SIX COLUMNS by FIVE ROWS. EXACTLY 30 cells. Each cell contains ONE complete head-and-upper-body animal with safe margin, then large nickname and a smaller species label below, perfectly legible. No cropping of ears or horns. Rows and columns rigorously aligned. Small title at top "Wiggle 동물 친구 30". No item numbering.
+Exact row-major species and Korean labels:
+ROW 1:
+white rabbit with long pink-lined ears: "솜이" / "토끼";
+honey brown bear: "보리" / "곰";
+orange fox with pointed ears white muzzle: "루루" / "여우";
+yellow tiger with black stripes: "호두" / "호랑이";
+black and white panda: "모모" / "판다";
+cream puppy with brown floppy ears: "두부" / "강아지".
+ROW 2:
+orange kitten: "나비" / "고양이";
+gray koala with large round ears and oval dark nose: "코코" / "코알라";
+golden lion with fluffy brown mane: "해솔" / "사자";
+green frog with eyes atop head: "초롱" / "개구리";
+brown squirrel with visible bushy tail: "밤톨" / "다람쥐";
+gray raccoon with black eye mask and striped tail: "라미" / "라쿤".
+ROW 3:
+hedgehog with soft brown spiky back and pale face: "도담" / "고슴도치";
+brown otter with rounded ears pale whiskered muzzle: "수리" / "수달";
+red panda with russet fur white cheeks ringed tail: "단풍" / "레서판다";
+white polar bear with small round ears: "설이" / "북극곰";
+gray elephant with long trunk big ears: "뿌미" / "코끼리";
+yellow giraffe with brown spots two ossicones and longer neck: "기린별" / "기린".
+ROW 4:
+black and white striped zebra: "줄리" / "얼룩말";
+lavender gray hippopotamus with broad round muzzle: "하몽" / "하마";
+gray rhinoceros with small blunt horn: "코뿔" / "코뿔소";
+white curly sheep with floppy ears: "포실" / "양";
+pink pig with round snout: "꿀봄" / "돼지";
+white cow with black patches little horns: "밀키" / "젖소".
+ROW 5:
+chestnut horse with mane and long muzzle: "달리" / "말";
+tan fawn with white spots large ears: "새봄" / "사슴";
+brown monkey with round ears and curled tail: "몽실" / "원숭이";
+beige sloth with eye patches and long soft forearms: "느루" / "나무늘보";
+black and white penguin with orange beak: "펭이" / "펭귄";
+yellow chick with tiny short orange triangular beak, NO hat, NO scarf: "삐유" / "병아리".
+Make all thirty unique, no duplicates, do not omit or substitute animals. Frog must be included. Polar bear not rabbit, chick not duck; Mongri blue-beret duck is NOT in this roster. No clothing/accessories, weapons, rating symbols. Cute high quality coherent family, equal visual importance, all 30 clearly countable.

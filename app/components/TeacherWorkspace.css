@@ -110,3 +110,10 @@ body:has(.teacher-workspace){background:#fff}
 @media(min-width:761px){
   .tcw-hand-list>li:nth-child(n+5){display:none}
 }
+
+/* 입장이 잠긴 기기 알림(2026-09-22). 손들기와 같은 줄에 서서 세 탭 어디서나 보인다.
+   잠금은 기기 단위라 누구인지는 모른다 — 몇 대가 막혔는지와 푸는 길만 준다. */
+.tcw-entry-lock{display:inline-flex;align-items:center;gap:8px;margin-left:auto;padding:6px 8px 6px 12px;border:1px solid #e2c6bd;border-radius:999px;background:#fdf1ed;color:#8c4230}
+.tcw-entry-lock b{font-size:14px;font-weight:900;white-space:nowrap}
+.teacher-workspace .tcw-entry-lock button{min-height:36px;padding:0 12px;border:1px solid #dfb6a8;border-radius:999px;background:#fff;color:#8c4230;font-size:13px;font-weight:800;cursor:pointer}
+@media(max-width:760px){.tcw-entry-lock{margin-left:0;flex:1 1 100%;justify-content:space-between}}

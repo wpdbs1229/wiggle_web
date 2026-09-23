@@ -1,10 +1,14 @@
+import { enqueueFeedback } from "@/lib/book-workflow";
 import { bindings } from "@/db/runtime";
 import { validateStorybookDocument, type StorybookDocument } from "@/lib/storybook-model";
-import { cleanText, id, jsonError, noStoreJson, rateLimit, requireTeacher, sameOrigin } from "@/lib/security";
+import { cleanText, jsonError, noStoreJson, rateLimit, requireTeacher, sameOrigin } from "@/lib/security";
 
 type BookRow = {
   id: string;
   title: string;
+  revision: number;
+  seatNumber: number | null;
+  realName: string | null;
   studentId: string;
   nickname: string;
   animal: string;
@@ -47,7 +51,7 @@ export async function GET(request: Request) {
   const classroom = await ownedClassroom(teacher.id, classroomId);
   if (!classroom) return jsonError("이 학급의 그림책을 볼 권한이 없어요.", 403);
 
-  const rows = await bindings().DB.prepare(`SELECT b.id, b.title, b.student_id AS studentId, s.nickname, s.animal, b.document_json AS documentJson, b.completed_at AS completedAt, b.created_at AS createdAt, b.updated_at AS updatedAt, f.status AS feedbackStatus, f.requested_at AS feedbackRequestedAt FROM storybooks b JOIN student_profiles s ON s.id = b.student_id LEFT JOIN storybook_feedback_requests f ON f.storybook_id = b.id AND f.teacher_id = ? WHERE b.classroom_id = ? AND b.status = 'complete' AND b.completed_at IS NOT NULL ORDER BY b.completed_at DESC, b.id DESC LIMIT 200`).bind(teacher.id, classroomId).all<BookRow>();
+  const rows = await bindings().DB.prepare(`SELECT b.id, b.title, b.revision, s.seat_number AS seatNumber, s.real_name AS realName, b.student_id AS studentId, s.nickname, s.animal, b.document_json AS documentJson, b.completed_at AS completedAt, b.created_at AS createdAt, b.updated_at AS updatedAt, f.status AS feedbackStatus, f.requested_at AS feedbackRequestedAt FROM storybooks b JOIN student_profiles s ON s.id = b.student_id LEFT JOIN storybook_feedback_requests f ON f.storybook_id = b.id AND f.teacher_id = ? WHERE b.classroom_id = ? AND s.archived_at IS NULL AND b.status = 'complete' AND b.completed_at IS NOT NULL ORDER BY b.completed_at DESC, b.id DESC LIMIT 200`).bind(teacher.id, classroomId).all<BookRow>();
   const storybooks = rows.results.flatMap(({ documentJson, ...book }) => {
     const document = readDocument(documentJson);
     return document ? [{ ...book, ...coverSummary(document) }] : [];
@@ -73,7 +77,6 @@ export async function POST(request: Request) {
   const owned = await bindings().DB.prepare(`SELECT b.id FROM storybooks b JOIN classrooms c ON c.id = b.classroom_id WHERE b.id IN (${placeholders}) AND b.classroom_id = ? AND b.status = 'complete' AND b.completed_at IS NOT NULL AND c.teacher_id = ? AND c.active = 1`).bind(...requestedIds, classroomId, teacher.id).all<{ id: string }>();
   if (owned.results.length !== requestedIds.length) return jsonError("선택한 그림책 중 이 학급의 완성본이 아닌 책이 있어요.", 403);
 
-  const db = bindings().DB;
-  await db.batch(requestedIds.map((storybookId) => db.prepare(`INSERT INTO storybook_feedback_requests(id, storybook_id, classroom_id, teacher_id, status, requested_at, updated_at) VALUES (?, ?, ?, ?, 'waiting_rubric', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(storybook_id, teacher_id) DO UPDATE SET status = CASE WHEN storybook_feedback_requests.status = 'complete' THEN 'complete' ELSE 'waiting_rubric' END, requested_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP`).bind(id("bookfeedback"), storybookId, classroomId, teacher.id)));
-  return noStoreJson({ ok: true, requested: requestedIds.length, status: "waiting_rubric" }, { status: 202 });
+  try { await enqueueFeedback(teacher.id, classroomId, requestedIds); } catch (error) { return jsonError(error instanceof Error ? error.message : "요청을 저장하지 못했어요."); }
+  return noStoreJson({ ok: true, requested: requestedIds.length, status: "queued" }, { status: 202 });
 }

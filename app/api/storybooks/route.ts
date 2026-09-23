@@ -1,5 +1,5 @@
 import { bindings } from "@/db/runtime";
-import { emptyStorybookDocument, STORYBOOK_FORMATS, type StorybookFormat } from "@/lib/storybook-model";
+import { emptyStorybookDocument, DEFAULT_STORYBOOK_FORMAT } from "@/lib/storybook-model";
 import { cleanText, id, jsonError, noStoreJson, rateLimit, sameOrigin, studentFromRequest } from "@/lib/security";
 import { ownedStorybook, storybookAssets, storybookResponse } from "@/lib/storybook-store";
 
@@ -29,8 +29,7 @@ export async function POST(request: Request) {
   if (!student) return jsonError("학생 로그인이 필요해요.", 401);
   if (!(await rateLimit(`storybook-create:${student.id}`, 20, 60))) return jsonError("새 그림책을 너무 빨리 만들고 있어요.", 429);
   const payload = await request.json().catch(() => ({})) as Record<string, unknown>;
-  const requestedFormat = cleanText(payload.format, 20) as StorybookFormat;
-  const format = STORYBOOK_FORMATS.includes(requestedFormat) ? requestedFormat : "landscape";
+  const format = DEFAULT_STORYBOOK_FORMAT;
   const artworkId = cleanText(payload.artworkId, 80);
   let artwork: CompletedArtwork | null = null;
   if (artworkId) {
@@ -49,7 +48,7 @@ export async function POST(request: Request) {
       rotation: 0, zIndex: 1, opacity: 1, locked: false,
     });
   }
-  const title = cleanText(payload.title, 60) || (artwork ? `${artwork.title} 그림책` : "나의 새 그림책");
+  const title = cleanText(payload.title, 60) || (artwork ? `${artwork.title} 그림책` : "");
   const db = bindings().DB;
   const statements = [
     db.prepare(`INSERT INTO storybooks(id, student_id, classroom_id, title, document_json, schema_version) VALUES (?, ?, ?, ?, ?, 1)`).bind(storybookId, student.id, student.classroomId, title, JSON.stringify(document)),

@@ -4,7 +4,6 @@ import {
   createStorybookTextElement,
   emptyStorybookDocument,
   MAX_STORYBOOK_ELEMENTS_PER_PAGE,
-  MAX_STORYBOOK_PAGES,
   MAX_STORYBOOK_TEXT_GRAPHEMES,
   STORYBOOK_IMAGE_AREA,
   STORYBOOK_TEXT_BOX,
@@ -80,10 +79,19 @@ test("요소는 페이지 밖으로 나가거나 다른 형식의 자산 ID를 �
   assert.equal(validateStorybookDocument(document), null);
 });
 
-test("페이지·요소·글자 수 상한과 중복 ID를 거부한다", () => {
-  const tooManyPages = emptyStorybookDocument();
-  tooManyPages.pages = Array.from({ length: MAX_STORYBOOK_PAGES + 1 }, (_, index) => ({ id: `page_${String(index).padStart(8, "0")}`, background: "#FFFFFF", elements: [] }));
-  assert.equal(validateStorybookDocument(tooManyPages), null);
+test("가져온 책은 24쪽·인쇄 상한을 넘어도 모든 쪽을 보존한다", () => {
+  for (const count of [25, 131, 1000]) {
+    const document = emptyStorybookDocument();
+    document.pages = Array.from({ length: count }, (_, i) => emptyStorybookDocument("squarebook-hc", `page_import${i.toString().padStart(8, "0")}`, `element_import${i.toString().padStart(8, "0")}`).pages[0]);
+    const saved = validateStorybookDocument(document);
+    assert.equal(saved.pages.length, count);
+    assert.deepEqual(saved.pages.map(p => p.id), document.pages.map(p => p.id));
+  }
+});
+
+test("빈 책·요소·글자 수 상한과 중복 ID를 거부한다", () => {
+  const empty = emptyStorybookDocument(); empty.pages = [];
+  assert.equal(validateStorybookDocument(empty), null);
 
   const tooManyElements = emptyStorybookDocument();
   tooManyElements.pages[0].elements = Array.from({ length: MAX_STORYBOOK_ELEMENTS_PER_PAGE + 1 }, (_, index) => textElement({ id: `element_${String(index).padStart(8, "0")}` }));
@@ -109,7 +117,7 @@ test("저장 문서에 제어문자와 비정상 숫자를 허용하지 않는�
 
 test("문서 한도는 UTF-16 글자 수가 아니라 실제 UTF-8 바이트로 계산한다", () => {
   const document = emptyStorybookDocument();
-  document.pages = Array.from({ length: MAX_STORYBOOK_PAGES }, (_, pageIndex) => ({
+  document.pages = Array.from({ length: 400 }, (_, pageIndex) => ({
     id: `page_${String(pageIndex).padStart(8, "0")}`,
     background: "#FFFFFF",
     elements: [

@@ -1,0 +1,265 @@
+/* DESIGN.md, 2026-08-31. Only routes wrapped in DesignSurface participate.
+   Artwork colors, text fonts and document geometry remain document-owned.
+   Entry and DrawingStudio deliberately have no DesignSurface ancestor. */
+.design-surface {
+  display: contents;
+  --design-font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+}
+.design-surface > main { font-family: var(--design-font); color: var(--ink); }
+.design-surface :is(button, input, select, textarea):not(.storybook-inline-text) { font-family: inherit; }
+.design-surface :is(button, a, input, textarea, select, summary):focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 3px; }
+.design-surface :is(.error-box, .loading-card, .empty-state) {
+  background: var(--bg); color: var(--ink); border-color: var(--border); box-shadow: none;
+}
+.design-surface :is(.button, .small-button) { line-height: 1.45; white-space: normal; text-align: center; }
+.design-surface :is(.button, .small-button):hover:not(:disabled) { transform: none; }
+.design-surface :is(input, textarea, select):not(.storybook-inline-text):focus { border-color: var(--primary-dark); box-shadow: none; }
+
+/* Adult register: quiet paper surfaces, one deep green, 6–10px corners. */
+.design-adult {
+  --tw-ink: var(--ink); --tw-muted: var(--secondary); --tw-green: var(--primary-dark); --tw-line: #E4E7E0;
+  --td-ink: var(--ink); --td-muted: var(--secondary); --td-green: var(--primary-dark); --td-green-dark: var(--primary-dark); --td-line: #E4E7E0;
+}
+.design-adult > main { font-size: 16px; line-height: 1.65; background-color: var(--bg); }
+.design-adult :is(.teacher-workspace, .teacher-dashboard) {
+  --tw-ink: var(--ink); --tw-muted: var(--secondary); --tw-green: var(--primary-dark); --tw-line: #E4E7E0;
+  --td-ink: var(--ink); --td-muted: var(--secondary); --td-green: var(--primary-dark); --td-green-dark: var(--primary-dark); --td-line: #E4E7E0;
+  font-family: var(--design-font);
+}
+.design-adult .book-desk { max-width: 1180px; padding: 24px 32px 56px; color: var(--ink); }
+.design-adult :is(.book-desk-header, .teacher-book-preview-header) { gap: 16px; }
+.design-surface.design-adult :where(.book-desk-hero, .book-panel, .book-library-card, .admin-metrics article, .admin-request-card,
+  .fm-batch, .fm-count, .rubric-guide, .feedback-progress, .feedback-student-files, .print-dimensions,
+  .book-live-student, .teacher-storybook-hero, .teacher-storybook-grid > article, .teacher-rubric-note,
+  .teacher-storybook-empty, .family-hero, .family-report, .family-artwork, .family-share-tools,
+  .family-unavailable, .family-expiry, .login-card, .large-qr-dialog, .teacher-preview) {
+  border: 1px solid var(--soft-border); border-radius: 10px; background: var(--paper); box-shadow: none;
+}
+.design-adult :is(.book-desk-hero, .family-hero) { padding: 32px; gap: 24px; }
+.design-adult :is(.book-desk-hero h1, .fm-heading h1, .admin-heading h1, .teacher-book-preview-header h1, .family-hero h1, .family-unavailable h1) {
+  font-size: 30px; font-weight: 800; line-height: 1.22; letter-spacing: -.02em; color: var(--ink);
+}
+.design-adult :is(.book-panel h2, .family-report h2, .family-artworks h2, .family-share-tools h2) {
+  font-size: 21px; font-weight: 800; line-height: 1.3; letter-spacing: -.015em;
+}
+.design-adult :is(.book-desk-hero p, .fm-heading p, .book-muted, .book-card-copy p, .book-job-error,
+  .book-empty, .book-check small, .book-student-heading > span, .book-live-status, .book-live-student small,
+  .admin-metrics small, .fm-book-button span, .rubric-steps span, .fm-preview small, .family-unavailable p) { color: var(--secondary); font-size: 14px; }
+.design-adult :is(.book-panel h3, .book-live-student, .book-card-copy h3) { color: var(--ink); }
+.design-adult :is(.book-panel, .fm-list) { padding: 24px; }
+.design-adult :is(.button, .small-button, .tcw-primary) {
+  min-height: 46px; min-width: 44px; border-radius: 10px; box-shadow: none; font-size: 15px; font-weight: 700;
+}
+.design-adult :is(.button.primary, .tcw-primary) {
+  background: var(--primary-dark); border-color: var(--primary-dark); color: var(--paper); box-shadow: none;
+}
+.design-adult :is(.button.secondary, .button.ghost, .small-button) { background: var(--paper); color: var(--ink); border: 1px solid var(--border); }
+.design-adult .button.secondary:hover:not(:disabled), .design-adult .small-button:hover { background: var(--bg); }
+.design-adult :is(.book-desk input:not([type=checkbox]):not([type=file]), .book-desk select, .book-field textarea, .book-live-advice textarea) {
+  min-height: 46px; border: 1px solid var(--border); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 16px;
+}
+.design-adult :is(.book-desk input[type=checkbox], progress) { accent-color: var(--primary-dark); }
+.design-adult .book-desk label:has(input[type=file]:focus-visible) { outline-color: var(--primary-dark); }
+.design-adult :is(.book-desk-count, .book-notice, .book-status, .rubric-tags span, .book-empty,
+  .print-dimensions, .admin-participants span, .fm-count, .fm-total, .rubric-guide,
+  .feedback-progress, .teacher-storybook-notice, .feedback-reading, .teacher-rubric-note,
+  .family-observations a, .child-words) {
+  background: var(--bg); color: var(--ink); border-color: var(--soft-border); border-radius: 6px;
+}
+.design-adult :is(.book-desk-count b, .book-quote > strong, .admin-metrics strong, .fm-text-button, .fm-preview article h3 span) { color: var(--primary-dark); }
+.design-adult .book-desk-count { padding: 16px 24px; min-width: 120px; }
+.design-adult .book-desk-count b { font-size: 36px; }
+.design-adult :is(.book-status, .rubric-tags span, .book-field, .book-quantity, .book-order-item-status, .book-check small, .book-card-copy p, .fm-extras, .fm-criteria > label, .fm-text-button, .fm-book-button span) { font-size: 14px; }
+.design-adult :is(.book-status, .admin-participants span) { border: 1px solid var(--soft-border); border-radius: 9999px; }
+.design-adult :is(.status-processing, .status-complete, .status-ready, .status-failed, .status-uncertain) { background: var(--pale-field); color: var(--ink); }
+.design-adult :is(.book-library-card:has(input:checked), .admin-request-card.selected, .book-live-student[aria-pressed=true], .fm-book.active, .fm-criteria > label.checked) {
+  border-color: var(--primary-dark); background: var(--pale-field); box-shadow: none;
+}
+.design-adult :is(.book-select, .fm-book, .fm-criteria > label, .book-live-student) { border-radius: 6px; }
+.design-adult .book-prompt { background: var(--bg); color: var(--ink); border: 1px solid var(--soft-border); font-size: 14px; }
+.design-adult .fm-heading { margin: 32px 0 24px; }
+.design-adult .fm-batch { background: var(--primary-dark); color: var(--paper); padding: 20px 24px; }
+.design-adult .fm-batch span { color: var(--on-field); font-size: 14px; }
+.design-adult .fm-batch .button { color: var(--primary-dark); background: var(--paper); border-color: var(--paper); }
+.design-adult .fm-book-button { color: var(--ink); }
+.design-adult .fm-book-button strong { font-size: 16px; }
+.design-adult .fm-preview { border-top: 4px solid var(--primary-dark); background: var(--paper); }
+.design-adult .rubric-sheet :is(th, td) { border-color: var(--soft-border); }
+.design-adult .rubric-sheet th { background: var(--bg); color: var(--ink); }
+.design-adult .rubric-sheet td:nth-child(n+3) { background: var(--pale-field); }
+.design-adult .fm-book.active { border-left: 4px solid var(--primary-dark); }
+.design-adult .fm-book-button[aria-pressed=true] strong::before { content: "✓ "; }
+.design-adult .feedback-spinner { border-color: var(--soft-border); border-top-color: var(--primary-dark); }
+.design-adult .print-book-stack > div { background: var(--primary-dark); border-color: var(--ink); color: var(--paper); box-shadow: none; transform: none; }
+.design-adult .admin-heading { padding: 24px 0 8px; }
+.design-adult .admin-metrics { gap: 20px; }
+.design-adult .admin-table :is(th, td) { border-color: #E4E7E0; }
+.design-adult .admin-table th { background: var(--bg); font-weight: 700; }
+.design-adult .admin-request-card { text-align: left; }
+.design-adult .admin-request-card.selected { border-width: 2px; }
+.design-adult :is(.book-live-layout, .book-order-layout, .admin-orders, .fm-layout) { gap: 20px; }
+.design-adult .book-live-student { text-align: left; }
+.design-adult .teacher-book-preview-shell { background: var(--bg); }
+.design-adult :is(.teacher-story-page, .teacher-book-cover) { box-shadow: none; border-radius: 10px; outline: 1px solid var(--border); }
+.design-adult .teacher-book-reader > button { background: var(--paper); color: var(--primary-dark); border-color: var(--border); border-radius: 10px; }
+.design-adult .teacher-book-thumbnails { justify-content: flex-start; background: var(--bg); }
+.design-adult .teacher-book-thumbnails button { border-radius: 6px; border-color: var(--soft-border); }
+.design-adult .teacher-book-thumbnails button.active { border: 2px solid var(--primary-dark); }
+.design-adult :is(.teacher-live-tools, .teacher-hand-raised, .tcw-error, .preview-message-error, .family-consent-panel, .family-link-ready) {
+  background: var(--bg); border-color: var(--border); color: var(--ink); box-shadow: none; border-radius: 6px;
+}
+.design-adult :is(.teacher-live-answer, .tcw-hand-count, .tcw-loading-status.is-error, .roster-errors) { color: var(--ink); }
+.design-adult .tcw-skel { background: var(--undrawn); animation: none; }
+.design-adult :is(.class-card, .create-class, .class-table, .teacher-auth-notice) { box-shadow: none; border-radius: 10px; border-color: var(--soft-border); }
+.design-adult .family-expiry { width: auto; min-width: 180px; aspect-ratio: auto; padding: 24px; }
+.design-adult .family-artwork-image { background: var(--paper); border: 1px solid var(--border); border-radius: 10px; }
+.design-adult .child-words blockquote { color: var(--ink); }
+.design-adult .teacher-login { background: var(--bg); }
+.design-adult .login-brand { background: var(--pale-field); color: var(--ink); }
+.design-surface.design-adult .teacher-workspace :is(button, summary) { min-width: 44px; min-height: 44px; }
+.design-surface.design-adult :is(.trs-danger, .class-delete-button) { color: var(--ink); border-color: var(--border); background: var(--paper); }
+.design-adult :is(.trs-table th, .trs-code, .trs-entry-code code, .trs-notice, .trs-import-notice) { background: var(--bg); color: var(--ink); border-color: var(--soft-border); }
+.design-adult :is(.trs-entry, .admission-badge, .tcw-status, .trs-entry.is-claimed, .tcw-status.is-complete) { background: var(--pale-field); color: var(--primary-dark); }
+
+/* Student register: spacious text and pills, yellow reserved for one next action. */
+.design-student > main { font-size: 18px; line-height: 1.6; }
+.design-student :is(.button, .small-button) { min-height: 56px; min-width: 44px; border-radius: 9999px; font-size: 18px; font-weight: 800; }
+.design-student .button.primary { background: var(--yellow); color: var(--ink); border-color: transparent; box-shadow: 0 3px 0 #E0AF2E; }
+.design-student :is(.button.secondary, .button.ghost, .small-button) { background: var(--paper); border: 2px solid var(--border); color: var(--ink); box-shadow: none; }
+.design-student .button.primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #E0AF2E; }
+.design-student .storybook-library { max-width: 1180px; padding-bottom: 56px; }
+.design-student .storybook-library-hero { background: var(--pale-field); border: 1px solid var(--soft-border); border-radius: 24px; box-shadow: none; padding: 32px; }
+.design-student .storybook-library-hero h1 { font-size: clamp(30px, 4vw, 44px); font-weight: 900; letter-spacing: -.03em; line-height: 1.14; color: var(--ink); }
+.design-student .storybook-library-hero .eyebrow { color: var(--primary-dark); }
+.design-student .storybook-library-hero > svg { flex: 0 0 auto; width: 80px; height: 80px; color: var(--primary-dark); stroke-width: 1.5; }
+.design-student :is(.storybook-new-book, .storybook-my-books) { margin-top: 32px; }
+.design-student :is(.storybook-new-book h2, .storybook-my-books h2) { font-size: 24px; color: var(--ink); letter-spacing: -.015em; }
+.design-student .storybook-format-options button { min-height: 68px; padding: 16px 24px; border: 0; border-radius: 9999px; background: var(--yellow); color: var(--ink); box-shadow: 0 3px 0 #E0AF2E; }
+.design-student .storybook-format-options button b { font-size: 19px; }
+.design-student .storybook-format-options i { border-color: var(--ink); background: var(--paper); }
+.design-student .storybook-format-options small { color: var(--ink); font-size: 14px; }
+.design-student .storybook-book-grid > a { border: 1px solid var(--border); border-radius: 16px; background: var(--paper); box-shadow: 0 4px 0 #16220f14; padding: 24px; }
+.design-student .storybook-book-grid > a > svg { width: 44px; height: 44px; color: var(--primary-dark); grid-row: 1 / span 2; }
+.design-student .storybook-book-grid > a > b { color: var(--primary-dark); }
+.design-student :is(.storybook-book-grid small, .storybook-book-grid time) { color: var(--secondary); font-size: 14px; }
+.design-student .artwork-detail-card { border: 1px solid var(--soft-border); border-radius: 24px; box-shadow: 0 4px 0 #16220f14; }
+.design-student .artwork-detail-image { border: 1px solid var(--border); border-radius: 10px; background: var(--paper); }
+.design-student .artwork-detail-copy h1 { font-size: clamp(30px, 4vw, 44px); line-height: 1.22; letter-spacing: -.02em; }
+.design-student .archive-book-page { background: var(--bg); }
+.design-student .archive-book-page > .app-header { background: var(--paper); border-color: var(--soft-border); }
+.design-student .archive-finish { background: var(--paper); color: var(--ink); }
+.design-student .archive-book-list > h1 { color: var(--ink); }
+.design-student .archive-book-list > h1::after { display: none; }
+.design-student .archive-book-list li > button { background: var(--paper); border-color: var(--border); }
+.design-student .archive-book-list li > button[aria-current=true] { background: var(--pale-field); border-color: var(--primary-dark); }
+.design-student .archive-book-thumb { border: 1px solid var(--border); box-shadow: 0 3px 0 #16220f14; }
+.design-student :is(.archive-book-meta b, .archive-book-head h2) { color: var(--ink); }
+.design-student .archive-book-meta b { font-size: 18px; }
+.design-student :is(.archive-book-meta time, .archive-book-status, .archive-pager-count) { color: var(--secondary); font-size: 14px; }
+.design-student .archive-book-empty { font-size: 18px; }
+.design-student .archive-book-view { border: 1px solid var(--soft-border); box-shadow: 0 4px 0 #16220f14; border-radius: 16px; }
+.design-student .archive-book-paper { border-radius: 10px; }
+.design-student .archive-book .archive-book-open { background: var(--yellow); color: var(--ink); box-shadow: 0 3px 0 #E0AF2E; font-size: 19px; }
+.design-student .archive-pager-button { border-color: var(--border); color: var(--primary-dark); }
+
+/* Shared book editor chrome. Never select the document's elements or images. */
+.design-surface .storybook-editor-shell { background: var(--bg); color: var(--ink); }
+.design-surface .storybook-editor-header { background: var(--paper); border-bottom: 1px solid var(--soft-border); box-shadow: none; gap: 12px; }
+.design-surface :is(.storybook-page-rail, .storybook-inspector, .storybook-toolbar) { background: var(--bg); border-color: var(--soft-border); }
+.design-surface .storybook-workspace { background: var(--field); }
+.design-surface .storybook-toolbar { background: var(--paper); gap: 8px; }
+.design-surface .storybook-toolbar button { flex: 0 0 auto; min-height: 44px; min-width: 44px; border: 1px solid var(--border); border-radius: 10px; color: var(--ink); background: var(--paper); }
+.design-surface .storybook-stage { box-shadow: 0 10px 0 #00000024; border-radius: 10px; }
+.design-surface .storybook-page-rail > button > span:not(:last-child), .design-surface .storybook-page-rail > button:not(.add-page) > span { border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 3px 0 #16220f14; }
+.design-surface .storybook-page-rail > button.active { border-color: var(--primary-dark); background: var(--pale-field); }
+.design-surface .storybook-page-rail > button.active > b::after { content: " ✓"; }
+.design-surface .storybook-page-rail > button > b { font-size: 14px; color: var(--ink); }
+.design-surface .storybook-page-rail .add-page { border-color: var(--undrawn-line); color: var(--secondary); background: var(--undrawn); }
+.design-surface .storybook-page-rail .add-page span { font-size: 14px; }
+.design-surface .storybook-stage-help { color: var(--on-field); font-size: 14px; line-height: 1.5; }
+.design-surface .storybook-stage-help b { color: var(--paper); }
+.design-surface .storybook-stage > .moveable-control-box { --moveable-color: var(--primary-dark); }
+.design-surface .storybook-stage .moveable-control { box-shadow: none; }
+.design-surface .storybook-stage .moveable-rotation-control { border-color: var(--primary-dark) !important; background: var(--paper) !important; }
+.design-surface .storybook-stage .moveable-guideline { background: var(--primary-dark) !important; }
+.design-surface .storybook-stage-element.selected { outline-color: var(--primary-dark); }
+.design-surface :is(.storybook-save-state, .storybook-save-state.error, .storybook-save-state.saving, .storybook-save-state.unsaved) { color: var(--secondary); font-size: 14px; }
+.design-surface .storybook-editor-error { background: var(--paper); border: 2px solid var(--primary-dark); box-shadow: none; color: var(--ink); }
+.design-surface .storybook-editor-error button { border-color: var(--border); }
+.design-surface .storybook-teacher-editor-note { background: var(--paper); color: var(--secondary); padding: 0 16px; border-bottom: 1px solid var(--soft-border); font-size: 14px; }
+.design-surface .storybook-teacher-editor-note summary { min-height: 44px; align-content: center; cursor: pointer; }
+.design-surface .storybook-teacher-editor-note p { margin: 0 0 16px; }
+.design-surface :is(.storybook-inspector label, .storybook-story-control h3, .storybook-page-controls h3) { color: var(--ink); font-size: 16px; }
+.design-surface :is(.storybook-inspector > p, .storybook-image-controls > p, .storybook-story-control p, .storybook-page-controls p) { color: var(--secondary); font-size: 14px; }
+.design-surface :is(.storybook-layer-buttons button, .storybook-align-buttons button) { color: var(--ink); background: var(--paper); border-color: var(--border); font-size: 14px; }
+.design-surface .storybook-inspector input[type=range] { min-height: 44px; accent-color: var(--primary-dark); }
+.design-surface .storybook-inspector .cutout-open-button { background: var(--primary-dark) !important; color: var(--paper); }
+.design-surface .storybook-teacher-advice { background: var(--pale-field); color: var(--ink); border-color: var(--border); border-radius: 10px; }
+.design-surface .storybook-inline-text::placeholder { color: var(--secondary); }
+.design-surface .storybook-stage-element.text > textarea.storybook-inline-text:focus { outline-color: var(--primary-dark); }
+.design-surface .storybook-modal-backdrop { background: #16220f99; backdrop-filter: none; }
+.design-surface :is(.storybook-picker-modal, .image-cutout-modal) { color: var(--ink); background: var(--paper); border: 1px solid var(--border); box-shadow: none; }
+.design-surface .storybook-artwork-picker-grid > button { background: var(--bg); border-color: var(--border); border-radius: 16px; }
+.design-surface .cutout-tool-buttons button[aria-pressed=true] { color: var(--ink); background: var(--pale-field); border: 2px solid var(--primary-dark); }
+.design-surface .cutout-controls > p { color: var(--secondary); background: var(--bg); font-size: 14px; }
+.design-surface .storybook-preview { background: var(--bg); color: var(--ink); }
+.design-surface .storybook-preview-stage-wrap { background: var(--field); border-radius: 24px; }
+.design-surface .storybook-preview-stage-wrap > button { background: var(--paper); color: var(--primary-dark); border: 1px solid var(--border); }
+.design-surface .storybook-preview .storybook-stage.preview { min-width: 0; }
+.design-surface .storybook-preview-stage-wrap > button { min-width: 44px; }
+.design-adult :is(.storybook-workspace, .storybook-preview-stage-wrap) { background: var(--bg); }
+.design-adult .storybook-stage-help { color: var(--secondary); }
+.design-adult .storybook-stage-help b { color: var(--ink); }
+.design-adult :is(.storybook-stage, .storybook-picker-modal, .image-cutout-modal) { box-shadow: none; border-radius: 10px; outline: 1px solid var(--border); }
+.design-student .storybook-toolbar button { border-radius: 9999px; font-size: 16px; }
+.design-student .storybook-inspector > p { font-size: 18px; }
+.design-student .storybook-editor-header .button { min-height: 52px; font-size: 18px; }
+.design-student .storybook-editor-header .small-button { min-height: 44px; font-size: 16px; }
+.design-student .storybook-library-hero p:not(.eyebrow) { font-size: 18px; }
+.design-student :is(.storybook-story-control p, .storybook-page-controls p, .storybook-image-controls > p) { font-size: 18px; }
+
+@media (max-width: 680px) {
+  .design-surface .storybook-editor-header { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; height: auto; }
+  .design-surface .storybook-editor-header > a { grid-row: 1; grid-column: 1; padding-inline: 8px; }
+  .design-surface .storybook-save-state { grid-row: 1; grid-column: 2 / -1; justify-self: end; }
+  .design-surface .storybook-editor-header > input { grid-row: 2; grid-column: 1 / -1; width: 100%; max-width: none; }
+  .design-surface .storybook-editor-header > button { grid-row: 3; width: 100%; min-width: 0; padding-inline: 8px; }
+  .design-surface .storybook-editor-body { height: auto; }
+  .design-surface .storybook-preview-stage-wrap { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .design-surface .storybook-preview-stage-wrap > button { width: 44px; }
+  .design-adult .teacher-book-reader { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .design-adult .teacher-book-reader > button { width: 44px; min-width: 44px; }
+}
+@media (min-width: 681px) and (max-height: 480px) {
+  .design-surface .storybook-editor-header { height: 68px; min-height: 68px; gap: 8px; }
+  .design-surface .storybook-editor-header > input { min-height: 44px; }
+  .design-surface .storybook-editor-header .button { min-height: 44px; font-size: 16px; }
+  .design-surface .storybook-editor-body { height: calc(100dvh - 68px); }
+}
+
+@media (max-width: 760px) {
+  .design-adult .book-desk { padding: 16px 16px 40px; }
+  .design-adult :is(.book-panel, .fm-list, .book-desk-hero, .family-hero) { padding: 20px; }
+  .design-adult .book-desk-hero { align-items: flex-start; flex-wrap: wrap; }
+  .design-adult .book-desk-count { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 8px 16px; }
+  .design-adult .book-desk-count b { font-size: 24px; }
+  .design-adult .book-desk-count span { font-size: 14px; }
+  .design-adult .fm-heading h1, .design-adult .book-desk-hero h1 { font-size: 26px; }
+  .design-adult .fm-batch { padding: 16px; }
+  .design-adult .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .design-adult .admin-metrics article { padding: 16px; }
+  .design-adult .admin-metrics strong { font-size: 24px; overflow-wrap: anywhere; }
+  .design-adult .family-expiry { min-width: 0; }
+  .design-student .storybook-library-hero { padding: 24px; }
+  .design-student .storybook-library-hero > svg { width: 48px; height: 48px; }
+  .design-student .storybook-book-grid > a { padding: 20px; }
+}
+@media (max-width: 420px) {
+  .design-adult .book-desk { padding-inline: 12px; }
+  .design-adult :is(.book-panel, .fm-list, .book-desk-hero) { padding: 16px; }
+  .design-adult .admin-metrics { grid-template-columns: 1fr; }
+  .design-student .storybook-library-hero > svg { display: none; }
+}
+@media print {
+  .design-surface .teacher-story-page { outline: none; border-radius: 0; box-shadow: none; }
+}

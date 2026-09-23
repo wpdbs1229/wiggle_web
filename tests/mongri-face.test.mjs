@@ -25,7 +25,9 @@ test("얼굴은 UI 상태로만 고르고, AI 문장을 읽지 않는다", async
   assert.match(picker, /grimiError \? "reassuring"/);
   assert.match(picker, /grimiLoading \? "thinking"/);
   assert.match(picker, /grimiCollapsed && coaching \? "suggesting"/);
-  assert.match(picker, /coaching && answer \? "listening"/);
+  // 2026-09-23: 답 고르기를 없애 읽기 전용이 되면서 "듣는 중" 얼굴이 설 자리가 사라졌다.
+  // 접힌 제안 → 질문 두 상태만 남는다.
+  assert.doesNotMatch(picker, /answer/);
   assert.match(picker, /coaching \? "curious"/);
   // 코칭 문장이나 짐작 글자를 훑어 표정을 고르는 코드가 없어야 한다.
   assert.doesNotMatch(picker, /question|guess|nextAction|includes\(/);

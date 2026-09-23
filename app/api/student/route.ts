@@ -1,5 +1,6 @@
 import { bindings, ensureSchema } from "@/db/runtime";
 import { cleanText, clientIp, isLocalDemoRequest, jsonError, noStoreJson, randomToken, rateLimit, sameOrigin, sha256, studentFromRequest } from "@/lib/security";
+import { decayedStrikes, failLimitFor, lockMessage, lockRemainingSeconds, lockSecondsFor, normalizeDeviceKey } from "@/lib/entry-lockout";
 import { FALLBACK_NICKNAME, NICKNAME_IDEAS } from "@/lib/nickname-ideas";
 import { activityLabel, normalizeActivityKey } from "@/lib/lesson-content";
 import { ensureLocalStorybookStudent } from "@/lib/dev-only/demo-seed";
@@ -161,10 +162,52 @@ async function studentPost(request: Request) {
     return noStoreJson({ classroomName: classroom.displayName, hasProfiles: Boolean(existing), hasRoster: Boolean(roster) });
   }
 
+  /* 입장 코드 잠금(2026-09-21). 수업 코드와 아이 참여 코드가 **같은 계수**를 쓴다 —
+   * 따로 세면 둘을 번갈아 찍어 두 배로 시도할 수 있다. */
+  async function lockState(deviceKey: string) {
+    if (!deviceKey) return { locked: 0, fails: 0, strikes: 0 };
+    const row = await bindings().DB.prepare(`SELECT fails, strikes, locked_until AS lockedUntil, updated_at AS updatedAt FROM entry_lockouts WHERE device_key = ?`).bind(deviceKey).first<{ fails: number; strikes: number; lockedUntil: string | null; updatedAt: string | null }>();
+    // 한참 뒤의 실수는 새 실수다 — 오래 조용했으면 단계와 계수를 처음으로 되돌린다.
+    const strikes = decayedStrikes(row?.strikes ?? 0, row?.updatedAt ?? null);
+    return { locked: lockRemainingSeconds(row?.lockedUntil ?? null), fails: strikes === 0 && (row?.strikes ?? 0) > 0 ? 0 : row?.fails ?? 0, strikes };
+  }
+  async function noteEntryFailure(deviceKey: string, classroomId: string | null) {
+    if (!deviceKey) return { seconds: 0, attemptsLeft: 0 };
+    const now = new Date();
+    const state = await lockState(deviceKey);
+    const fails = state.fails + 1;
+    // 몇 번 틀려야 잠기는지는 지금까지 몇 번 잠겼는지에 달렸다(세 번 잠긴 뒤부터는 세 번).
+    const limit = failLimitFor(state.strikes);
+    if (fails < limit) {
+      await bindings().DB.prepare(`INSERT INTO entry_lockouts(device_key, classroom_id, fails, strikes, locked_until, updated_at) VALUES (?, ?, ?, ?, NULL, ?) ON CONFLICT(device_key) DO UPDATE SET classroom_id = excluded.classroom_id, fails = excluded.fails, updated_at = excluded.updated_at`).bind(deviceKey, classroomId, fails, state.strikes, now.toISOString()).run();
+      // 몇 번 남았는지 알려 준다 — 아이가 갑자기 막히지 않고 미리 안다(2026-09-21 사용자 요청).
+      return { seconds: 0, attemptsLeft: limit - fails };
+    }
+    // 정해진 횟수에 이르면 잠근다. 되풀이될수록 쉬는 시간이 길어진다.
+    const strikes = state.strikes + 1;
+    const seconds = lockSecondsFor(strikes);
+    const until = new Date(now.getTime() + seconds * 1000).toISOString();
+    await bindings().DB.prepare(`INSERT INTO entry_lockouts(device_key, classroom_id, fails, strikes, locked_until, updated_at) VALUES (?, ?, 0, ?, ?, ?) ON CONFLICT(device_key) DO UPDATE SET classroom_id = excluded.classroom_id, fails = 0, strikes = excluded.strikes, locked_until = excluded.locked_until, updated_at = excluded.updated_at`).bind(deviceKey, classroomId, strikes, until, now.toISOString()).run();
+    return { seconds, attemptsLeft: 0 };
+  }
+  /** 맞게 들어왔으면 계수를 지운다 — 다섯 번째에 맞힌 아이가 벌을 받으면 안 된다. */
+  async function clearEntryFailures(deviceKey: string) {
+    if (!deviceKey) return;
+    await bindings().DB.prepare(`DELETE FROM entry_lockouts WHERE device_key = ?`).bind(deviceKey).run();
+  }
+
   if (action === "join") {
     if (!(await ipAllowed(request))) return jsonError("입장 시도가 많아요. 잠시 후 다시 해 주세요.", 429);
+    // 잠긴 기기는 코드를 맞게 넣어도 통과시키지 않는다. 맞는지 확인해 주는 것 자체가 찍기를 돕는다.
+    const deviceKey = normalizeDeviceKey(payload.deviceKey);
+    const lock = await lockState(deviceKey);
+    if (lock.locked > 0) return noStoreJson({ error: lockMessage(lock.locked), code: "ENTRY_LOCKED", retryAfterSeconds: lock.locked }, { status: 429 });
     const entry = cleanText(payload.entry, 80); const classroom = await classroomForEntry(entry);
-    if (!classroom) return jsonError("수업 코드를 다시 확인해 주세요.", 404);
+    if (!classroom) {
+      const failure = await noteEntryFailure(deviceKey, null);
+      if (failure.seconds) return noStoreJson({ error: lockMessage(failure.seconds), code: "ENTRY_LOCKED", retryAfterSeconds: failure.seconds }, { status: 429 });
+      return noStoreJson({ error: "수업 코드를 다시 확인해 주세요.", code: "ENTRY_CODE", ...(failure.attemptsLeft ? { attemptsLeft: failure.attemptsLeft } : {}) }, { status: 404 });
+    }
     if (!classroom.admissionOpen) return jsonError("선생님이 입장을 열 때까지 기다려 주세요.", 403);
 
     // 입장은 선생님 명단의 참여 코드 하나로 한다(2026-09-09 사용자 결정). 번호 + 그림 비밀번호는
@@ -178,7 +221,13 @@ async function studentPost(request: Request) {
     // 네 자리 만 개 중 한 반 코드는 수십 개다. 학급+IP 버킷(60회/10분)이 찍어 맞추기를 막는다.
     if (!(await rateLimit(`student-join-class:${classroom.id}:${requestIp(request)}`, CLASSROOM_JOIN_LIMIT, IP_ENTRY_WINDOW_SECONDS))) return jsonError("이 수업의 입장 시도가 많아요. 선생님께 알려 주세요.", 429);
     const seat = await bindings().DB.prepare(`SELECT id, nickname, animal, claimed_at AS claimedAt FROM student_profiles WHERE classroom_id = ? AND entry_code = ? AND archived_at IS NULL`).bind(classroom.id, entryCode).first<{ id: string; nickname: string; animal: string; claimedAt: string | null }>();
-    if (!seat) return noStoreJson({ error: "참여 코드를 다시 확인해 주세요.", code: "ENTRY_CODE" }, { status: 404 });
+    if (!seat) {
+      const failure = await noteEntryFailure(deviceKey, classroom.id);
+      if (failure.seconds) return noStoreJson({ error: lockMessage(failure.seconds), code: "ENTRY_LOCKED", retryAfterSeconds: failure.seconds }, { status: 429 });
+      return noStoreJson({ error: "참여 코드를 다시 확인해 주세요.", code: "ENTRY_CODE", ...(failure.attemptsLeft ? { attemptsLeft: failure.attemptsLeft } : {}) }, { status: 404 });
+    }
+    // 여기까지 왔으면 두 코드가 모두 맞다. 쌓인 실패를 지운다.
+    await clearEntryFailures(deviceKey);
 
     if (!seat.claimedAt) {
       // 첫 입장은 동물 하나만 고른다. 별명은 그 동물의 기본 별명이다 — 아이가 글자를 치지 않는다.

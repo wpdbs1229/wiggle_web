@@ -77,12 +77,13 @@ test("교사는 자기 반 완성 그림책만 열고 피드백을 요청한다"
     method: "POST", headers: teacherHeaders, body: JSON.stringify({ classroomId, storybookIds: [completedId, otherId] }),
   });
   assert.equal(mixedRequest.status, 403);
-  assert.equal((await server.DB.prepare("SELECT COUNT(*) AS count FROM storybook_feedback_requests").first()).count, 0);
+  assert.equal((await server.DB.prepare("SELECT COUNT(*) AS count FROM book_feedback_jobs").first()).count, 0);
 
   const feedbackRequest = await server.fetch("/api/teacher/storybooks", {
     method: "POST", headers: teacherHeaders, body: JSON.stringify({ classroomId, storybookIds: [completedId] }),
   });
-  assert.deepEqual(await (await expectStatus(feedbackRequest, 202)).json(), { ok: true, requested: 1, status: "waiting_rubric" });
-  const stored = await server.DB.prepare("SELECT storybook_id AS storybookId, classroom_id AS classroomId, teacher_id AS teacherId, status, rubric_version AS rubricVersion, feedback_json AS feedbackJson FROM storybook_feedback_requests").first();
-  assert.deepEqual(stored, { storybookId: completedId, classroomId, teacherId, status: "waiting_rubric", rubricVersion: null, feedbackJson: null });
+  assert.deepEqual(await (await expectStatus(feedbackRequest, 202)).json(), { ok: true, requested: 1, status: "queued" });
+  const stored = await server.DB.prepare("SELECT storybook_id AS storybookId, classroom_id AS classroomId, teacher_id AS teacherId, status, rubric_version AS rubricVersion, feedback_json AS feedbackJson FROM book_feedback_jobs").first();
+  assert.match(stored.rubricVersion, /^[a-f0-9]{64}$/);
+  assert.deepEqual(stored, { storybookId: completedId, classroomId, teacherId, status: "queued", rubricVersion: stored.rubricVersion, feedbackJson: null });
 });

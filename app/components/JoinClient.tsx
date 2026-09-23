@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { storeProfile } from "@/lib/client-session";
-import { classifyEntryError, EntryErrorKind, readStudentEntryResponse, StudentEntryResponseError } from "@/lib/student-entry-client";
+import { classifyEntryError, EntryErrorKind, readStudentEntryResponse, StudentEntryResponseError, entryDeviceKey } from "@/lib/student-entry-client";
+import { Clock as ClockIcon } from "lucide-react";
 import { Logo } from "./Logo";
 import { WaitMongri } from "./WaitMongri";
 import check from "./EntryCheck.module.css";
@@ -25,6 +26,29 @@ export function JoinClient({ initialEntry = "" }: { initialEntry?: string }) {
   const [animal, setAnimal] = useState("");
   const [error, setError] = useState("");
   const [errorKind, setErrorKind] = useState<EntryErrorKind | "">("");
+  // 잠기기까지 몇 번 남았는지. 갑자기 막히지 않고 미리 알 수 있게 한다(2026-09-21 사용자 요청).
+  const [attemptsLeft, setAttemptsLeft] = useState(-1);
+  /* 잠금 시계는 "만료 시각"에서 매번 다시 계산한다(GPT 인계 STATE-SPEC 2026-09-22).
+   * 매초 1씩 빼면 탭이 뒤로 갔다 오거나 타이머가 밀릴 때 실제 시각과 어긋난다. */
+  const [lockUntil, setLockUntil] = useState(0);
+  const [lockTotal, setLockTotal] = useState(0);
+  const [lockLeft, setLockLeft] = useState(0);
+  const [lockDone, setLockDone] = useState(false);
+  useEffect(() => {
+    if (!lockUntil) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+      setLockLeft(left);
+      if (left === 0) {
+        // 끝나면 안내를 걷고 "이제 된다"고 한 번만 알린다. 자동으로 다시 보내지 않는다.
+        setLockUntil(0); setLockDone(true); clearEntryError();
+      }
+    };
+    tick();
+    const timer = window.setInterval(tick, 500);
+    document.addEventListener("visibilitychange", tick);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
+  }, [lockUntil]);
   const [teacherCallOpen, setTeacherCallOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -108,19 +132,21 @@ export function JoinClient({ initialEntry = "" }: { initialEntry?: string }) {
   }
 
   function backToCode() {
-    clearEntryError(); setAnimal(""); setCodeInput(""); claimCode.current = ""; setMode("code");
+    clearEntryError(); setAttemptsLeft(-1); setAnimal(""); setCodeInput(""); claimCode.current = ""; setMode("code");
     requestAnimationFrame(() => window.scrollTo(0, 0));
   }
 
   // code를 따로 받는 이유: QR로 채운 직후에는 setCodeInput이 아직 반영되지 않았다.
   async function submit(chosenAnimal = "", code = codeInput) {
     if (code.length !== ENTRY_CODE_LENGTH) { setError("참여 코드 네 자리를 눌러 주세요."); setErrorKind("general"); return; }
-    clearEntryError(); setBusy(true);
+    clearEntryError(); setLockDone(false); setBusy(true);
     let failureKind: EntryErrorKind = "general";
     try {
-      const response = await fetch("/api/student", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "join", entry, entryCode: code, ...(chosenAnimal ? { animal: chosenAnimal } : {}) }), cache: "no-store" });
-      failureKind = classifyEntryError(response.status);
+      const response = await fetch("/api/student", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "join", entry, entryCode: code, deviceKey: entryDeviceKey(), ...(chosenAnimal ? { animal: chosenAnimal } : {}) }), cache: "no-store" });
       const data = await readStudentEntryResponse(response);
+      failureKind = classifyEntryError(response.status, data.code);
+      if (data.retryAfterSeconds) { setLockUntil(Date.now() + data.retryAfterSeconds * 1000); setLockTotal(data.retryAfterSeconds); setLockDone(false); }
+      setAttemptsLeft(typeof data.attemptsLeft === "number" ? data.attemptsLeft : -1);
       if (!response.ok) throw new StudentEntryResponseError(data.error ?? "입장할 수 없어요.");
       // 코드는 맞는데 처음이면 동물 하나만 고른다. 별명은 서버가 동물에 맞춰 붙인다.
       if (data.firstTime) { claimCode.current = code; setMode("animal"); requestAnimationFrame(() => window.scrollTo(0, 0)); return; }
@@ -149,9 +175,17 @@ export function JoinClient({ initialEntry = "" }: { initialEntry?: string }) {
   function errorNotice() {
     if (!error) return null;
     return <div className="entry-error-block">
-      <div className="error-box child-error" role="alert"><span className="child-error-icon" aria-hidden="true">⚠️</span><p>{error}</p></div>
-      {errorKind === "code" && !teacherCallOpen && <button type="button" className="button secondary full teacher-call-button" onClick={() => setTeacherCallOpen(true)}><span aria-hidden="true">🙋</span>선생님 불러요</button>}
-      {errorKind === "code" && teacherCallOpen && <div className="teacher-call-note" role="status"><span className="teacher-call-emoji" aria-hidden="true">🙋</span><p>손을 들고 선생님을 불러요.<br />참여 코드를 다시 알려 주실 거예요.</p></div>}
+      {/* 남은 횟수와 남은 시간은 오류 상자 **안**에 둔다. 줄을 따로 띄우면 화면이 갑자기 늘어나
+          아래 단추가 156px 밀린다(2026-09-21 실측). 아이에게는 그 움직임이 부담이다. */}
+      <div className="error-box child-error" role="alert">
+        <span className="child-error-icon" aria-hidden="true">⚠️</span>
+        <p>
+          {error}
+          {errorKind === "code" && attemptsLeft > 0 && <small className="entry-attempts-left">앞으로 {attemptsLeft}번 더 틀리면 잠깐 쉬어요.</small>}
+        </p>
+      </div>
+      {(errorKind === "code" || errorKind === "locked") && !teacherCallOpen && <button type="button" className="button secondary full teacher-call-button" onClick={() => setTeacherCallOpen(true)}><span aria-hidden="true">🙋</span>선생님 불러요</button>}
+      {(errorKind === "code" || errorKind === "locked") && teacherCallOpen && <div className="teacher-call-note" role="status"><span className="teacher-call-emoji" aria-hidden="true">🙋</span><p>손을 들고 선생님을 불러요.<br />참여 코드를 다시 알려 주실 거예요.</p></div>}
     </div>;
   }
 
@@ -200,18 +234,27 @@ export function JoinClient({ initialEntry = "" }: { initialEntry?: string }) {
 
   if (mode === "code") {
     const pressKey = (digit: string) => { clearEntryError(); setCodeInput((current) => (current + digit).slice(0, ENTRY_CODE_LENGTH)); };
+    const waiting = errorKind === "locked" && lockLeft > 0;
+    const lockText = lockLeft >= 60 ? `${Math.ceil(lockLeft / 60)}분` : `${lockLeft}초`;
+    // 코드가 틀린 경우만 연초록 안내로 바꾼다. 연결 오류 등은 기존 오류 상자가 맡는다.
+    const codeErrorNotice = errorKind === "code";
+    const lockRatio = lockTotal > 0 ? Math.max(0, Math.min(1, lockLeft / lockTotal)) : 0;
+    /* 잠긴 동안에는 숫자판을 **치우고** 기다림 카드로 바꾼다(2026-09-22 사용자 시안).
+     * 안내를 숫자판 아래에 덧붙이면 화면이 갑자기 늘어나 아래 단추가 밀린다 — 아이에게 부담이다.
+     * 누를 수 없는 숫자판을 남겨 두면 계속 누르게 된다. */
     return <main className={`${check.shell} ${check.seatShell}`}>
       {scenery}
       <div className={`${check.stage} ${check.seatStage}`}>
         <div className={check.head}>
           <div className={check.logo}><Logo /></div>
         </div>
-        <img className={check.duck} src="/landing-gallery/duck-painter-640.webp" alt="" aria-hidden="true" width="640" height="640" />
+        {!waiting && <img className={check.duck} src="/landing-gallery/duck-painter-640.webp" alt="" aria-hidden="true" width="640" height="640" />}
         <div className={check.seatTitle}>
           <h1>내 참여 코드를 눌러요</h1>
           <p>선생님이 준 네 자리 숫자예요.</p>
         </div>
         <span className={check.padBadge}>{classroomName}</span>
+        <div className={`entry-code-layout${waiting ? " is-waiting" : ""}`}>
         <section className={`code-card ${check.pad}`} aria-label="참여 코드 입력 수첩">
           <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
             <label className={check.padLabel} htmlFor="entry-code">내 참여 코드</label>
@@ -226,22 +269,57 @@ export function JoinClient({ initialEntry = "" }: { initialEntry?: string }) {
                 maxLength={ENTRY_CODE_LENGTH}
                 value={codeInput}
                 aria-label="내 참여 코드"
+                disabled={waiting}
                 onChange={(event) => { setCodeInput(event.target.value.replace(/[^0-9]/g, "").slice(0, ENTRY_CODE_LENGTH)); clearEntryError(); }}
               />
             </div>
             <div className={check.keys} role="group" aria-label="숫자판">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => <button type="button" className={check.key} key={digit} onClick={() => pressKey(digit)}>{digit}</button>)}
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => <button type="button" className={check.key} key={digit} disabled={waiting} onClick={() => pressKey(digit)}>{digit}</button>)}
               <span className={check.keyBlank} aria-hidden="true" />
-              <button type="button" className={check.key} onClick={() => pressKey("0")}>0</button>
-              <button type="button" className={`${check.key} ${check.keyErase}`} aria-label="한 자리 지우기" onClick={() => { clearEntryError(); setCodeInput((current) => current.slice(0, -1)); }}><span aria-hidden="true">⌫</span>지우기</button>
+              <button type="button" className={check.key} disabled={waiting} onClick={() => pressKey("0")}>0</button>
+              <button type="button" className={`${check.key} ${check.keyErase}`} disabled={waiting} aria-label="한 자리 지우기" onClick={() => { clearEntryError(); setCodeInput((current) => current.slice(0, -1)); }}><span aria-hidden="true">⌫</span>지우기</button>
             </div>
-            {errorNotice()}
-            <button className={`${check.enter} child-primary-action`} disabled={busy || codeInput.length !== ENTRY_CODE_LENGTH}>{busy ? "확인 중…" : "들어가기"}</button>
+            {/* 틀림이 쌓이는 동안(아직 안 잠김)은 시안 1의 연초록 안내다 — 빨간 경고 상자를 쓰지 않는다.
+                잠기면 넓은 화면은 옆 카드(시안 3), 좁은 화면은 같은 줄 안내에 시간 칩만 더해 보여 준다.
+                2026-09-22 사용자 지시: 쌓이는 화면은 1번, 잠긴 화면은 3번. */}
+            {(waiting || codeErrorNotice) && <div className={`entry-wait-inline${waiting ? " is-locked" : ""}`}>
+              <img src="/entry-green/mongri-waiting-face.webp" alt="" width={160} height={160} />
+              <div className="entry-wait-inline-copy">
+                <b>{waiting ? "잠깐만 기다려 줘" : "참여 코드가 맞는지 다시 확인해 봐"}</b>
+                <span>{waiting ? "기다리는 동안 참여 코드를 확인해 봐." : attemptsLeft > 0 ? `앞으로 ${attemptsLeft}번 더 틀리면 잠깐 쉬어요.` : "선생님이 준 네 자리 숫자를 눌러 줘."}</span>
+              </div>
+              {waiting && <span className="entry-wait-chip"><ClockIcon size={16} />{lockText} 뒤 다시 입력할 수 있어요.</span>}
+            </div>}
+            {/* 코드가 틀렸을 때 선생님을 부를 길은 그대로 남긴다 — 연초록 안내로 바꾸면서 잃을 뻔했다
+                (브라우저 실측이 잡음, 2026-09-22). 잠긴 동안에는 옆 카드/줄 안내가 같은 단추를 준다. */}
+            {codeErrorNotice && !waiting && (teacherCallOpen
+              ? <div className="teacher-call-note" role="status"><span className="teacher-call-emoji" aria-hidden="true">🙋</span><p>손을 들고 선생님을 불러요.<br />참여 코드를 다시 알려 주실 거예요.</p></div>
+              : <button type="button" className={`${check.help} teacher-call-button`} onClick={() => setTeacherCallOpen(true)}><span aria-hidden="true">🙋</span>선생님 불러요</button>)}
+            {/* 코드가 틀린 것 말고(연결 끊김 등)는 기존 오류 상자를 그대로 쓴다. */}
+            {!waiting && !codeErrorNotice && errorNotice()}
+            <button className={`${check.enter} child-primary-action`} disabled={waiting || busy || codeInput.length !== ENTRY_CODE_LENGTH}>{waiting ? "잠시 기다리는 중" : busy ? "확인 중…" : "들어가기"}</button>
           </form>
           {/* 누르기 어려운 아이는 쪽지의 QR을 찍어 바로 들어간다. */}
-          <button type="button" className={`${check.scan} child-primary-action`} disabled={busy} onClick={() => { clearEntryError(); setScanning(true); }}><span aria-hidden="true">📷</span>내 쪽지 QR로 찍기</button>
-          <a className={check.again} href="/">수업 코드 다시 입력하기</a>
+          <button type="button" className={`${check.scan} child-primary-action`} disabled={busy || waiting} onClick={() => { clearEntryError(); setScanning(true); }}><span aria-hidden="true">📷</span>내 쪽지 QR로 찍기</button>
+          {!waiting && <a className={check.again} href="/">수업 코드 다시 입력하기</a>}
         </section>
+        {/* 잠긴 동안 옆에 서는 안내 카드(2026-09-22 사용자 시안). 숫자판은 그대로 두되 잠근다 —
+            치워 버리면 아이가 무엇을 기다리는지 잃고, 안내를 아래에 덧붙이면 화면이 늘어난다. */}
+        {waiting && <aside className="entry-wait-panel">
+          <p className="entry-wait-bubble">잠깐 기다리는 동안<br />선생님이 준 숫자를 확인해 봐.</p>
+          <img className="entry-wait-mongri" src="/entry-green/mongri-waiting-desk.webp" alt="" width={760} height={563} />
+          <p className="entry-wait-after">{lockText} 후에 다시 입력할 수 있어요.</p>
+          {/* 총시간을 아는 경우에만 줄어드는 막대를 보인다 — 없으면 가짜 진행률을 만들지 않는다. */}
+          {lockTotal > 0 && <div className="entry-wait-bar" aria-hidden="true"><div className="entry-wait-bar-track"><span style={{ width: `${Math.round(lockRatio * 100)}%` }} /></div><small>{lockText}</small></div>}
+          {/* 실제로 메시지를 보내는 기능이 아니다 — 손을 들라고 알려 줄 뿐이라 이름도 그대로 둔다. */}
+          {!teacherCallOpen
+            ? <button type="button" className={`${check.help} teacher-call-button`} onClick={() => setTeacherCallOpen(true)}><span aria-hidden="true">🙋</span>선생님 불러요</button>
+            : <div className="teacher-call-note" role="status"><span className="teacher-call-emoji" aria-hidden="true">🙋</span><p>손을 들고 선생님을 불러요.<br />참여 코드를 다시 알려 주실 거예요.</p></div>}
+        </aside>}
+        </div>
+        {/* 대기에 들어갈 때와 끝날 때만 한 번씩 읽어 준다 — 매초 읽으면 소음이 된다. */}
+        <p className="sr-only" role="status" aria-live="polite">{waiting ? "잠깐 기다려요. 곧 다시 입력할 수 있어요." : lockDone ? "이제 다시 입력할 수 있어요." : ""}</p>
+        {lockDone && !waiting && <p className="entry-wait-ready" role="status">이제 다시 입력할 수 있어요.</p>}
       </div>
       {scanning && <QrScanner onResult={handleScan} onClose={() => setScanning(false)} hint="내 쪽지의 QR을 네모 안에 보여 줘" />}
     </main>;

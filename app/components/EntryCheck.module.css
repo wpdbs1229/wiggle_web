@@ -291,23 +291,28 @@
 }
 .display b { position: absolute; right: clamp(12px, 1.6cqw, 24px); top: 50%; transform: translateY(-50%); font-size: clamp(16px, 1.8cqw, 27px); font-weight: 900; color: var(--ink); pointer-events: none; }
 .keys { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(44px, 1fr); gap: clamp(5px, 0.8cqw, 11px); }
+/* 숫자판은 시안의 연초록이다(2026-09-22 사용자 요청, 시안에서 뽑은 색 rgb(233,237,219)).
+   코드 표시칸과 같은 계열이라 "여기가 코드 넣는 자리"로 한 덩어리로 읽힌다. */
 .key {
   min-height: 44px;
-  border: 1px solid #ddd5b4;
+  border: 1px solid #cfdcc0;
   border-radius: clamp(10px, 1.3cqw, 18px);
-  background: #fffdf4;
-  box-shadow: 0 4px 0 #e2d8b4;
-  color: var(--ink);
+  background: #e9eddb;
+  box-shadow: 0 4px 0 #d3dfc1;
+  color: #184b35;
   font: inherit;
   font-size: clamp(19px, 2.2cqw, 33px);
   font-weight: 900;
   cursor: pointer;
 }
-.key:active { transform: translateY(2px); box-shadow: 0 2px 0 #e2d8b4; }
+.key:active { transform: translateY(2px); box-shadow: 0 2px 0 #d3dfc1; }
+/* 잠긴 동안에는 눌리지 않는다는 것이 보여야 한다 — 색을 빼고 그림자도 없앤다. */
+.key:disabled { background: #eceee6; border-color: #dcdfd4; box-shadow: none; color: #8a9386; cursor: default; }
+.key:disabled:active { transform: none; }
 .key:focus-visible { outline: 4px solid var(--accent); outline-offset: 2px; }
 .keyErase { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: clamp(12px, 1.3cqw, 19px); }
 .keyErase span { font-size: clamp(17px, 1.9cqw, 28px); line-height: 1; }
-.keyBlank { border-radius: clamp(10px, 1.3cqw, 18px); background: #f5efdb; }
+.keyBlank { border-radius: clamp(10px, 1.3cqw, 18px); background: #eff2e6; }
 .enter { composes: primary; width: 100%; min-height: clamp(48px, 4.5cqw, 64px); flex: none; }
 /* 쪽지 QR 찍기. 들어가기(노란)보다 한 단계 약하게, 그래도 아이가 찾을 수 있게 크고 그림이 있다. */
 .scan { composes: help; width: 100%; min-height: 56px; margin-top: 10px; font-size: 18px; flex: none; }

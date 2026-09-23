@@ -1,5 +1,6 @@
+import { storybookEditorActor } from "@/lib/storybook-editor-auth";
 import { bindings } from "@/db/runtime";
-import { cleanText, id, jsonError, noStoreJson, randomToken, rateLimit, sameOrigin, studentFromRequest } from "@/lib/security";
+import { cleanText, id, jsonError, noStoreJson, randomToken, rateLimit, sameOrigin } from "@/lib/security";
 import { ownedStorybook, storybookAssets } from "@/lib/storybook-store";
 
 // Vercel Functions의 4.5MB 요청 한도 아래에서 raw PNG로 전송한다. base64 JSON은
@@ -26,13 +27,13 @@ function publicAsset(asset: Awaited<ReturnType<typeof storybookAssets>>[number])
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return jsonError("요청 출처를 확인할 수 없어요.", 403);
-  const student = await studentFromRequest(request);
+  const student = await storybookEditorActor(request);
   if (!student) return jsonError("학생 로그인이 필요해요.", 401);
-  if (!(await rateLimit(`storybook-asset:${student.id}`, 30, 60))) return jsonError("이미지를 너무 빠르게 추가하고 있어요.", 429);
+  if (!(await rateLimit(`storybook-asset:${student.id}`, new URL(request.url).pathname.startsWith("/api/teacher/") ? 180 : 30, 60))) return jsonError("이미지를 너무 빠르게 추가하고 있어요.", 429);
   const storybookId = cleanText((await context.params).id, 80);
   if (!(await ownedStorybook(storybookId, student.id))) return jsonError("내 그림책이 아니거나 찾을 수 없어요.", 404);
   const currentAssets = await storybookAssets(storybookId, student.id);
-  if (currentAssets.length >= MAX_ASSETS_PER_BOOK) return jsonError("한 그림책에는 이미지 60개까지 넣을 수 있어요.", 413);
+  if (!new URL(request.url).pathname.startsWith("/api/teacher/") && currentAssets.length >= MAX_ASSETS_PER_BOOK) return jsonError("한 그림책에는 이미지 60개까지 넣을 수 있어요.", 413);
   const contentType = request.headers.get("content-type") ?? "";
   const payload = contentType.startsWith("application/json")
     ? await request.json().catch(() => ({})) as Record<string, unknown>

@@ -1,3 +1,4 @@
+import { isAdmin } from "@/lib/admin";
 import { cookies } from "next/headers";
 import { bindings, randomEntryCode } from "@/db/runtime";
 import { bytesToDataUrl } from "@/lib/image-data";
@@ -140,7 +141,7 @@ export async function GET(request: Request) {
   const db = bindings().DB;
   if (!classroomId) {
     const result = await db.prepare(`SELECT c.id, c.display_name AS displayName, c.class_code AS classCode, c.join_token AS joinToken, c.admission_open AS admissionOpen, c.current_activity AS currentActivity, c.updated_at AS updatedAt, COUNT(s.id) AS studentCount FROM classrooms c LEFT JOIN student_profiles s ON s.classroom_id = c.id AND s.archived_at IS NULL WHERE c.teacher_id = ? AND c.active = 1 GROUP BY c.id ORDER BY c.created_at DESC`).bind(teacher.id).all<ClassroomRow>();
-    return noStoreJson({ teacher, classrooms: result.results.map(presentClassroom) });
+    return noStoreJson({ teacher: { ...teacher, isAdmin: isAdmin(teacher) }, classrooms: result.results.map(presentClassroom) });
   }
 
   const classroom = await ownedClassroom(teacher.id, classroomId);
@@ -181,9 +182,12 @@ export async function GET(request: Request) {
   const archivedStudents = await db.prepare(`SELECT s.id, s.nickname, s.animal, s.seat_number AS seatNumber, s.real_name AS realName, s.last_activity_at AS lastActivityAt, s.archived_at AS archivedAt, COUNT(a.id) AS artworkCount FROM student_profiles s LEFT JOIN artworks a ON a.student_id = s.id WHERE s.classroom_id = ? AND s.archived_at IS NOT NULL GROUP BY s.id ORDER BY s.archived_at DESC, s.nickname COLLATE NOCASE`).bind(classroomId).all<{ id: string; nickname: string; animal: string; seatNumber: number | null; realName: string | null; lastActivityAt: string; archivedAt: string; artworkCount: number }>();
   const messages = await db.prepare(`SELECT m.id, m.student_id AS studentId, m.body, m.created_at AS createdAt, s.nickname, COUNT(r.student_id) AS seenCount FROM teacher_messages m LEFT JOIN student_profiles s ON s.id = m.student_id LEFT JOIN message_receipts r ON r.message_id = m.id WHERE m.classroom_id = ? GROUP BY m.id ORDER BY m.created_at DESC, m.id DESC LIMIT 30`).bind(classroomId).all();
   const familyLinks = await db.prepare(`SELECT l.id, l.student_id AS studentId, l.scope, l.expires_at AS expiresAt, l.revoked_at AS revokedAt, l.created_at AS createdAt, COUNT(f.artwork_id) AS artworkCount FROM family_share_links l JOIN student_profiles s ON s.id = l.student_id LEFT JOIN family_share_artworks f ON f.link_id = l.id WHERE l.teacher_id = ? AND s.classroom_id = ? GROUP BY l.id ORDER BY l.created_at DESC LIMIT 50`).bind(teacher.id, classroomId).all();
+  /* 지금 입장이 잠긴 기기 수. 손들기처럼 선생님이 알아차릴 수 있어야 한다(2026-09-22 사용자 결정) —
+   * 잠금은 기기 단위라 누구인지는 알 수 없고, 몇 대가 막혀 있는지만 알린다. */
+  const lockedRow = await db.prepare(`SELECT COUNT(*) AS n FROM entry_lockouts WHERE classroom_id = ? AND locked_until > ?`).bind(classroomId, new Date().toISOString()).first<{ n: number }>();
   // serverNow: 손든 뒤 얼마나 기다렸는지를 교사 화면이 서버 시계 기준으로 계산하게 한다.
   // 교사 기기 시계가 틀어져 있어도 "3분째"가 어긋나지 않는다.
-  return noStoreJson({ teacher, classroom, students: hydrated, archivedStudents: archivedStudents.results, messages: messages.results, familyLinks: familyLinks.results, serverNow: new Date().toISOString() });
+  return noStoreJson({ teacher: { ...teacher, isAdmin: isAdmin(teacher) }, classroom, students: hydrated, archivedStudents: archivedStudents.results, messages: messages.results, familyLinks: familyLinks.results, entryLocks: lockedRow?.n ?? 0, serverNow: new Date().toISOString() });
 }
 
 /* 교사가 입력하는 학급 명단. 번호는 학급 안에서 고유하고, 실명은 담임에게만 보인다.
@@ -410,6 +414,13 @@ export async function POST(request: Request) {
     await db.prepare(`UPDATE teacher_marks SET answer = 'cleared', answered_at = ? WHERE student_id = ? AND classroom_id = ? AND answered_at IS NULL`).bind(new Date().toISOString(), studentId, classroomId).run();
     return noStoreJson({ cleared: true });
   }
+  /* 입장 잠금 풀기(2026-09-21). 잠금은 기기 단위라 서버가 어느 아이인지 알 수 없다 —
+   * 그래서 이 학급에서 걸린 잠금을 한꺼번에 푼다. 3분을 기다리게 두면 아이가 수업에서 빠진다. */
+  if (action === "clearEntryLocks") {
+    const result = await db.prepare(`DELETE FROM entry_lockouts WHERE classroom_id = ?`).bind(classroomId).run();
+    return noStoreJson({ cleared: result.meta.changes ?? 0 });
+  }
+
   if (action === "lowerHand") {
     const studentId = cleanText(payload.studentId, 40);
     await db.prepare(`DELETE FROM hand_raises WHERE student_id = ? AND classroom_id = ?`).bind(studentId, classroomId).run();

@@ -27,8 +27,8 @@ function RosterField({ value, onChange, label }: { value: string; onChange: (nex
 
 type FamilyLink = { id: string; studentId: string; scope: "artwork" | "bundle"; expiresAt: string; revokedAt: string | null; createdAt: string; artworkCount: number };
 type TeacherArtworkHistory = { id: string; title: string; topic: string; learningMode: string; lessonSlug: string | null; status: string; currentStep: number; updatedAt: string; completedAt: string | null; thumbnail: string | null };
-export type ClassroomData = { serverNow?: string; classroom: Classroom; students: Student[]; archivedStudents: ArchivedStudent[]; messages: Array<{ id: string; studentId: string | null; body: string; createdAt: string; nickname?: string; seenCount?: number }>; familyLinks: FamilyLink[]; teacher: { displayName: string; source?: "siwc" | "local" } };
-type TeacherPayload = Partial<ClassroomData> & { error?: string; localDemo?: boolean; teacher?: { displayName: string; source?: "siwc" | "local" }; classrooms?: Classroom[] };
+export type ClassroomData = { serverNow?: string; entryLocks?: number; classroom: Classroom; students: Student[]; archivedStudents: ArchivedStudent[]; messages: Array<{ id: string; studentId: string | null; body: string; createdAt: string; nickname?: string; seenCount?: number }>; familyLinks: FamilyLink[]; teacher: { displayName: string; isAdmin?: boolean; source?: "siwc" | "local" } };
+type TeacherPayload = Partial<ClassroomData> & { error?: string; localDemo?: boolean; teacher?: { displayName: string; isAdmin?: boolean; source?: "siwc" | "local" }; classrooms?: Classroom[] };
 
 function profileDate(value: string) {
   if (!value) return "기록 없음";
@@ -130,7 +130,7 @@ export function TeacherApp({ classroomId = "" }: { classroomId?: string }) {
   const [copyNotice, setCopyNotice] = useState("");
   const [loadError, setLoadError] = useState("");
   const { copiedKey, copiedLabel, copy } = useCopyFeedback(setCopyNotice);
-  const [authorized, setAuthorized] = useState<boolean | null>(null); const [localDemo, setLocalDemo] = useState(false); const [teacher, setTeacher] = useState<{ displayName: string; source?: "siwc" | "local" } | null>(null); const [classrooms, setClassrooms] = useState<Classroom[]>([]); const [classroomData, setClassroomData] = useState<ClassroomData | null>(null); const [error, setError] = useState("");
+  const [authorized, setAuthorized] = useState<boolean | null>(null); const [localDemo, setLocalDemo] = useState(false); const [teacher, setTeacher] = useState<{ displayName: string; isAdmin?: boolean; source?: "siwc" | "local" } | null>(null); const [classrooms, setClassrooms] = useState<Classroom[]>([]); const [classroomData, setClassroomData] = useState<ClassroomData | null>(null); const [error, setError] = useState("");
   const [email, setEmail] = useState(""); const [pin, setPin] = useState(""); const [newClass, setNewClass] = useState(""); const [messageBody, setMessageBody] = useState(""); const [targetStudent, setTargetStudent] = useState(""); const [viewingStudentId, setViewingStudentId] = useState("");
   const [previewMessageBody, setPreviewMessageBody] = useState("");
   const [previewMessageStatus, setPreviewMessageStatus] = useState("");
@@ -348,7 +348,7 @@ export function TeacherApp({ classroomId = "" }: { classroomId?: string }) {
     const listed = sorted.filter((item) => (classFilter === "all" || (classFilter === "open") === Boolean(item.admissionOpen)) && (!query || item.displayName.toLowerCase().includes(query)));
     const openQr = (item: Classroom, opener: HTMLButtonElement) => { qrOpenButtonRef.current = opener; setQrClassroom(item); setQrExpanded(true); };
     return <main className="teacher-shell teacher-dashboard">
-      <header className="teacher-header"><Logo /><div><span>교사</span><b>{teacher?.displayName}</b></div><button className="small-button" onClick={async () => { await teacherPost({ action: "logout" }); location.href = "/teacher"; }}>로그아웃</button></header>
+      <header className="teacher-header"><Logo /><div><span>교사</span><b>{teacher?.displayName}</b></div>{teacher?.isAdmin && <a className="small-button" href="/admin">관리자 페이지</a>}<button className="small-button" onClick={async () => { await teacherPost({ action: "logout" }); location.href = "/teacher"; }}>로그아웃</button></header>
       <section className="dashboard-title"><div><h1>내 학급</h1><p>오늘도, 아이들의 생각이 자라는 수업을 만들어보세요.</p></div><button type="button" className="button primary" aria-expanded={creatingClass} onClick={() => setCreatingClass((value) => !value)}>＋ 새 학급</button></section>
       {creatingClass && <form className="create-class" onSubmit={createClass}><label>새 학급 이름<input value={newClass} maxLength={30} autoFocus onChange={(event) => setNewClass(event.target.value)} placeholder="예: 별빛 1반" /></label><RosterField label="우리 반 명단" value={newRoster} onChange={setNewRoster} /><p className="roster-privacy">학생은 자기 <b>번호</b>로 들어옵니다. 이름은 <b>선생님만</b> 봅니다 — 학생 화면·가족 공유·AI에는 보내지 않아요.</p><div className="create-class-actions"><button className="button primary" disabled={newClass.length < 2 || !parseRosterText(newRoster).entries.length || parseRosterText(newRoster).errors.length > 0}>학급 만들기</button><button type="button" className="button secondary" onClick={() => { setCreatingClass(false); setNewClass(""); setNewRoster(""); }}>취소</button></div></form>}
       {error && <p className="error-box" role="alert">{error}</p>}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { opaqueBounds, removeConnectedColor, removeEdgeBackground, type NormalizedRect } from "@/lib/image-cutout";
-import { studentFetch } from "@/lib/client-session";
+import { storybookEditorFetch } from "@/lib/storybook-editor-fetch";
 
 type Tool = "background" | "eraser" | "restore";
 
@@ -26,7 +26,7 @@ export function ImageCutoutModal({ sourceUrl, onClose, onSave }: {
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await studentFetch(sourceUrl, { signal: controller.signal });
+        const response = await storybookEditorFetch(sourceUrl, { signal: controller.signal });
         if (!response.ok) throw new Error("선택한 그림을 불러오지 못했어요.");
         const blob = await response.blob(); const objectUrl = URL.createObjectURL(blob);
         try {

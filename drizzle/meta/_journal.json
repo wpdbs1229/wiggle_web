@@ -61,8 +61,22 @@
     {
       "idx": 8,
       "version": "6",
-      "when": 1789352313967,
-      "tag": "0008_thin_rogue",
+      "when": 1788880106670,
+      "tag": "0008_huge_secret_warriors",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789558569405,
+      "tag": "0009_unknown_supernaut",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789563844175,
+      "tag": "0010_red_speed_demon",
       "breakpoints": true
     }
   ]

@@ -1,3 +1,4 @@
+import { PresenceHeartbeat } from "./components/PresenceHeartbeat";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
@@ -52,7 +53,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body><InputModeTracker />{children}</body>
+      <body><InputModeTracker /><PresenceHeartbeat />{children}</body>
     </html>
   );
 }

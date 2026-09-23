@@ -64,3 +64,4 @@ next-env.d.ts
 # BMAD 개인 설정 (팀 공유 대상 아님)
 /_bmad/config.user.toml
 /_bmad/custom/config.user.toml
+/public/pdfjs/

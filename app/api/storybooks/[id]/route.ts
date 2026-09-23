@@ -1,10 +1,11 @@
+import { storybookEditorActor } from "@/lib/storybook-editor-auth";
 import { bindings } from "@/db/runtime";
-import { validateStorybookDocument } from "@/lib/storybook-model";
-import { cleanText, jsonError, noStoreJson, rateLimit, sameOrigin, studentFromRequest } from "@/lib/security";
+import { MAX_STORYBOOK_PAGES, storybookCompletionError, validateStorybookDocument } from "@/lib/storybook-model";
+import { cleanText, jsonError, noStoreJson, rateLimit, sameOrigin } from "@/lib/security";
 import { ownedStorybook, priorStorybookMutation, storybookAssets, storybookResponse } from "@/lib/storybook-store";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  const student = await studentFromRequest(request);
+  const student = await storybookEditorActor(request);
   if (!student) return jsonError("학생 로그인이 필요해요.", 401);
   const storybookId = cleanText((await context.params).id, 80);
   const book = await ownedStorybook(storybookId, student.id);
@@ -14,7 +15,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return jsonError("요청 출처를 확인할 수 없어요.", 403);
-  const student = await studentFromRequest(request);
+  const student = await storybookEditorActor(request);
   if (!student) return jsonError("학생 로그인이 필요해요.", 401);
   if (!(await rateLimit(`storybook-save:${student.id}`, 90, 60))) return jsonError("저장이 너무 빨라요. 잠깐 기다려 주세요.", 429);
   const storybookId = cleanText((await context.params).id, 80);
@@ -29,6 +30,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   if (!Number.isInteger(expectedRevision) || expectedRevision !== book.revision) return noStoreJson({ error: "다른 저장이 먼저 반영됐어요. 새로고침해 주세요.", code: "REVISION_CONFLICT", serverRevision: book.revision }, { status: 409 });
   const document = validateStorybookDocument(payload.document);
   if (!document) return jsonError("그림책 페이지 데이터가 올바르지 않아요.");
+  if (!new URL(request.url).pathname.startsWith("/api/teacher/") && (document.pages.length > MAX_STORYBOOK_PAGES || new TextEncoder().encode(JSON.stringify(document)).byteLength > 250_000)) return jsonError("그림책 페이지 데이터가 올바르지 않아요.");
   const referencedAssets = new Set(document.pages.flatMap((page) => [
     ...(page.backgroundAssetId ? [page.backgroundAssetId] : []),
     ...page.elements.filter((element) => element.type === "image").map((element) => element.assetId as string),
@@ -37,8 +39,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const ownedAssets = await storybookAssets(storybookId, student.id);
     if ([...referencedAssets].some((assetId) => !ownedAssets.some((asset) => asset.id === assetId))) return jsonError("다른 그림책의 이미지는 사용할 수 없어요.", 403);
   }
-  const title = cleanText(payload.title, 60) || book.title;
+  const title = typeof payload.title === "string" ? cleanText(payload.title, 60) : book.title;
   const complete = payload.complete === true;
+  const completionError = complete && storybookCompletionError(title, document.pages.length, !new URL(request.url).pathname.startsWith("/api/teacher/"));
+  if (completionError) return jsonError(completionError);
   const newRevision = book.revision + 1;
   const db = bindings().DB;
   const results = await db.batch([

@@ -1,10 +1,11 @@
+import { storybookEditorActor } from "@/lib/storybook-editor-auth";
 import { bindings } from "@/db/runtime";
-import { cleanText, jsonError, studentFromRequest } from "@/lib/security";
+import { cleanText, jsonError } from "@/lib/security";
 
 type OwnedAsset = { objectKey: string; contentType: string };
 
 export async function GET(request: Request, context: { params: Promise<{ id: string; assetId: string }> }) {
-  const student = await studentFromRequest(request);
+  const student = await storybookEditorActor(request);
   if (!student) return jsonError("학생 로그인이 필요해요.", 401);
   const params = await context.params;
   const storybookId = cleanText(params.id, 80);

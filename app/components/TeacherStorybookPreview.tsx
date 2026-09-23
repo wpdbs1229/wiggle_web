@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { StorybookCrop, StorybookDocument, StorybookElement, StorybookPage } from "@/lib/storybook-model";
 import { Logo } from "./Logo";
+import { StorybookTextInput } from "./StorybookTextInput";
+import { AuthenticatedImage } from "./AuthenticatedImage";
+import "./storybook-editing.css";
 
 type TeacherBook = { id: string; classroomId: string; classroomName: string; studentId: string; nickname: string; animal: string; title: string; completedAt: string; document: StorybookDocument };
 type TeacherAsset = { id: string; sourceType: string; contentType: string };
@@ -12,16 +15,16 @@ function imageCropStyle(crop?: StorybookCrop): CSSProperties {
   return { left: `${-crop.x / crop.width * 100}%`, top: `${-crop.y / crop.height * 100}%`, width: `${100 / crop.width}%`, height: `${100 / crop.height}%`, objectFit: "fill" };
 }
 
-function BookPage({ bookId, format, page, assetIds }: { bookId: string; format: StorybookDocument["format"]; page: StorybookPage; assetIds: Set<string> }) {
-  const assetUrl = (assetId: string) => `/api/teacher/storybooks/${bookId}/assets/${assetId}`;
-  const renderElement = (element: StorybookElement) => <div className={`teacher-story-element ${element.type}`} key={element.id} style={{ left: `${element.x * 100}%`, top: `${element.y * 100}%`, width: `${element.width * 100}%`, height: `${element.height * 100}%`, transform: `rotate(${element.rotation}deg)`, zIndex: element.type === "text" ? 10_002 : element.zIndex + 1, opacity: element.opacity, color: element.color, textAlign: element.align }}>
-    {element.type === "image" && element.assetId && assetIds.has(element.assetId) ? <img src={assetUrl(element.assetId)} alt="" style={imageCropStyle(element.crop)} /> : element.type === "text" ? <span style={{ fontSize: `${(element.fontSize ?? 0.045) * 100}cqi` }}>{element.text}</span> : null}
+export const BookPage = memo(function BookPage({ bookId, format, page, assetIds, assetBase = "/api/teacher/storybooks" }: { bookId: string; format: StorybookDocument["format"]; page: StorybookPage; assetIds?: Set<string>; assetBase?: string }) {
+  const assetUrl = (assetId: string) => `${assetBase}/${bookId}/assets/${assetId}`;
+  const renderElement = (element: StorybookElement) => <div className={`teacher-story-element ${element.type} ${element.type === "text" ? "storybook-stage-element" : ""}`} key={element.id} style={{ left: `${element.x * 100}%`, top: `${element.y * 100}%`, width: `${element.width * 100}%`, height: `${element.height * 100}%`, transform: `rotate(${element.rotation}deg)`, zIndex: element.type === "text" ? 10_002 : element.zIndex + 1, opacity: element.opacity, color: element.color, textAlign: element.align }}>
+    {element.type === "image" && element.assetId && (!assetIds || assetIds.has(element.assetId)) ? <AuthenticatedImage src={assetUrl(element.assetId)} alt="그림책 그림" style={imageCropStyle(element.crop)} /> : element.type === "text" ? <StorybookTextInput element={element} format={format} interactive={false} /> : null}
   </div>;
   return <div className={`teacher-story-page format-${format}`} style={{ background: page.background }}>
-    {page.backgroundAssetId && assetIds.has(page.backgroundAssetId) && <img className="teacher-story-background" src={assetUrl(page.backgroundAssetId)} alt="" />}
+    {page.backgroundAssetId && (!assetIds || assetIds.has(page.backgroundAssetId)) && <AuthenticatedImage className="teacher-story-background" src={assetUrl(page.backgroundAssetId)} alt="그림책 배경" />}
     {page.elements.slice().sort((a, b) => a.zIndex - b.zIndex).map(renderElement)}
   </div>;
-}
+});
 
 export function TeacherStorybookPreview({ classroomId, storybookId }: { classroomId: string; storybookId: string }) {
   const [book, setBook] = useState<TeacherBook | null>(null);

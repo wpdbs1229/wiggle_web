@@ -1,0 +1,127 @@
+{
+  "status": "design-proposal-not-implemented",
+  "date": "2026-09-13",
+  "style": "plush (working assumption, not a user style selection)",
+  "characters": [
+    {
+      "name": "솜이",
+      "species": "토끼"
+    },
+    {
+      "name": "보리",
+      "species": "곰"
+    },
+    {
+      "name": "루루",
+      "species": "여우"
+    },
+    {
+      "name": "호두",
+      "species": "호랑이"
+    },
+    {
+      "name": "모모",
+      "species": "판다"
+    },
+    {
+      "name": "두부",
+      "species": "강아지"
+    },
+    {
+      "name": "나비",
+      "species": "고양이"
+    },
+    {
+      "name": "코코",
+      "species": "코알라"
+    },
+    {
+      "name": "해솔",
+      "species": "사자"
+    },
+    {
+      "name": "초롱",
+      "species": "개구리"
+    },
+    {
+      "name": "밤톨",
+      "species": "다람쥐"
+    },
+    {
+      "name": "라미",
+      "species": "라쿤"
+    },
+    {
+      "name": "도담",
+      "species": "고슴도치"
+    },
+    {
+      "name": "수리",
+      "species": "수달"
+    },
+    {
+      "name": "단풍",
+      "species": "레서판다"
+    },
+    {
+      "name": "설이",
+      "species": "북극곰"
+    },
+    {
+      "name": "뿌미",
+      "species": "코끼리"
+    },
+    {
+      "name": "기린별",
+      "species": "기린"
+    },
+    {
+      "name": "줄리",
+      "species": "얼룩말"
+    },
+    {
+      "name": "하몽",
+      "species": "하마"
+    },
+    {
+      "name": "코뿔",
+      "species": "코뿔소"
+    },
+    {
+      "name": "포실",
+      "species": "양"
+    },
+    {
+      "name": "꿀봄",
+      "species": "돼지"
+    },
+    {
+      "name": "밀키",
+      "species": "젖소"
+    },
+    {
+      "name": "달리",
+      "species": "말"
+    },
+    {
+      "name": "새봄",
+      "species": "사슴"
+    },
+    {
+      "name": "몽실",
+      "species": "원숭이"
+    },
+    {
+      "name": "느루",
+      "species": "나무늘보"
+    },
+    {
+      "name": "펭이",
+      "species": "펭귄"
+    },
+    {
+      "name": "삐유",
+      "species": "병아리"
+    }
+  ]
+}
