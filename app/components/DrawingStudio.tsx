@@ -730,7 +730,7 @@ export function DrawingStudio() {
       const loadDisposition = artworkUrl ? resolveArtworkDraftDisposition(localSaves, artworkUrl, data.artwork.status === "complete") : { action: "load" as const };
       if (loadDisposition.action === "archive") {
         hydratedKeyRef.current = loadKey;
-        location.replace("/student/archive");
+        location.replace("/student");
         return;
       }
       const loadDraft = loadDisposition.action === "recover" ? loadDisposition.draft : restoredDraft;
@@ -1353,7 +1353,7 @@ export function DrawingStudio() {
           conflictDraftRef.current = null;
           setConflictDraft(null);
           setConflictRevision(null);
-          location.replace("/student/archive");
+          location.replace("/student");
           return;
         }
         const latestRevision = flushed.latestRevisions[url];
@@ -2378,7 +2378,9 @@ export function DrawingStudio() {
         reflection: { favoritePart: "", favoriteReason: "", spokenDescription: "", storyText },
       });
       if (ok) {
-        location.href = "/student/archive";
+        // 완성하고 나면 아이 자리로 돌아간다(2026-09-25 사용자 지시). 거기서 방금 그린 그림과
+        // 새 그림·그림책을 함께 본다. 보관함은 그 화면의 「내 그림 모두 보기」로 한 번에 간다.
+        location.href = "/student";
         return;
       }
       setCompletionState("error");
@@ -2461,7 +2463,7 @@ export function DrawingStudio() {
       setSaveState("사본은 저장했어요. 정리가 끝나지 않았으니 한 번 더 눌러 주세요");
       return;
     }
-    location.replace(draft.complete ? "/student/archive" : `/student/draw/${createdData.artwork.id}`);
+    location.replace(draft.complete ? "/student" : `/student/draw/${createdData.artwork.id}`);
   }
 
   /* 조건이 맞는 순간에만 몽그리가 먼저 말을 건다. 획을 긋는 도중에는 절대 뜨지 않는다 —
