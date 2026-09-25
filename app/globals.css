@@ -848,6 +848,26 @@ code,pre { max-width:100%; overflow-x:auto; white-space:nowrap; word-break:norma
 .history-row button>b { font-size:13px; }.history-row button:disabled { opacity:.45; }
 .completion-pending,.completion-error { margin:12px 0 0; padding:11px 13px; border-radius:12px; font-weight:800; line-height:1.45; text-align:center; }
 .completion-pending { color:#1d6725; background:#eafaec; }.completion-error { color:#a33434; background:#fff0f0; }
+
+/* ── 저장하는 동안 화면을 덮는 막 (2026-09-25 사용자 요청) ────────────────────────
+   종전에는 단추 안에서만 표시가 돌아 아이가 눈치채지 못하고 다른 것을 누르려 했다.
+   소감 모달(z-index 20)보다 위에 있어 뒤쪽 누르기를 전부 받아 삼킨다. */
+.saving-veil { position:fixed; inset:0; z-index:30; display:grid; place-items:center; padding:20px; background:rgba(16,38,20,.62); backdrop-filter:blur(2px); }
+.saving-veil-card { display:grid; justify-items:center; gap:10px; width:min(320px,100%); padding:26px 22px 22px; border-radius:26px; background:#fffdf1; box-shadow:0 24px 60px rgba(0,0,0,.28); text-align:center; }
+.saving-veil-card>img { width:clamp(92px,22vw,124px); height:auto; }
+.saving-veil-card>b { font-size:clamp(18px,4.6vw,22px); font-weight:900; color:#1d4b2a; }
+.saving-veil-card>small { color:#5d6f5b; font-size:14px; font-weight:750; line-height:1.55; }
+.saving-veil-dots { display:flex; gap:7px; }
+.saving-veil-dots>i { width:10px; height:10px; border-radius:50%; background:#8fbf7a; animation:saving-veil-bounce 1s ease-in-out infinite; }
+.saving-veil-dots>i:nth-child(2) { animation-delay:.16s; }
+.saving-veil-dots>i:nth-child(3) { animation-delay:.32s; }
+@keyframes saving-veil-bounce { 0%,60%,100% { transform:translateY(0); opacity:.45; } 30% { transform:translateY(-7px); opacity:1; } }
+/* 움직임을 줄이는 기기에서는 튀지 않고 밝기만 번갈아 바뀐다 — 기다리는 중이라는 신호는 남긴다. */
+@media (prefers-reduced-motion: reduce) {
+  .saving-veil { backdrop-filter:none; }
+  .saving-veil-dots>i { animation:saving-veil-fade 1.4s ease-in-out infinite; }
+  @keyframes saving-veil-fade { 0%,100% { opacity:.4; } 50% { opacity:1; } }
+}
 .reflection-modal button:disabled { cursor:not-allowed; }
 
 @media (max-width:720px) {

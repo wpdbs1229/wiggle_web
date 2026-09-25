@@ -3359,9 +3359,21 @@ export function DrawingStudio() {
                 <span aria-hidden="true">{completionState === "saving" ? "⏳" : "⭐"}</span>{completionState === "saving" ? "작품을 안전하게 저장 중…" : completionState === "error" ? "다시 저장하기" : "작품 완성"}
               </button>
             </div>
-            {completionState === "saving" && <p className="completion-pending" role="status" aria-live="polite">창을 닫지 않아도 돼요. 그림을 안전하게 보관하고 있어요.</p>}
             {completionState === "error" && <p className="completion-error" role="alert">{completionError}</p>}
           </section>
+        </div>
+      )}
+      {/* 저장하는 동안은 화면 전체를 덮는다(2026-09-25 사용자 요청). 단추 안에서만 도는 표시는
+          아이 눈에 잘 안 띄어 그동안 다른 것을 누르려 든다. 이 막은 모달보다 위(z-index 30)에 있어
+          뒤쪽 누르기를 전부 받아 삼킨다 — 닫기·단추는 이미 disabled라 탭으로도 닿지 않는다. */}
+      {completionState === "saving" && (
+        <div className="saving-veil" role="status" aria-live="assertive">
+          <div className="saving-veil-card">
+            <img src="/brand/mongri/reassuring.png" alt="" aria-hidden="true" width={224} height={224} />
+            <b>그림을 저장하고 있어요</b>
+            <span className="saving-veil-dots" aria-hidden="true"><i /><i /><i /></span>
+            <small>잠깐만 기다려 줘. 창을 닫지 않아도 돼요.</small>
+          </div>
         </div>
       )}
     </main>

@@ -308,3 +308,21 @@ test("기다리는 화면은 입장 확인과 같은 몽그리 화면을 쓴다"
   assert.doesNotMatch(page, /drawing-loading/);
   assert.doesNotMatch(css, /\.drawing-loading/);
 });
+
+test("저장하는 동안 화면 전체를 덮어 아무것도 누르지 못하게 한다", () => {
+  /* 2026-09-25 사용자 요청: 단추 안에서만 도는 표시는 아이 눈에 잘 안 띄어 그동안 다른 것을
+     누르려 든다. 소감 모달(z-index 20)보다 위에 막을 깔아 뒤쪽 누르기를 전부 받아 삼킨다.
+     실측(390×844): 막 390×844로 화면을 꽉 덮고, 모서리·닫기 자리를 눌러도 .saving-veil이 받는다. */
+  assert.match(studio, /\{completionState === "saving" && \([\s\S]{0,80}<div className="saving-veil" role="status" aria-live="assertive">/);
+  // 글을 못 읽어도 무엇을 기다리는지 알도록 몽그리 얼굴과 움직이는 점이 함께 있다.
+  assert.match(studio, /brand\/mongri\/reassuring\.png/);
+  assert.match(studio, /그림을 저장하고 있어요/);
+  assert.match(studio, /className="saving-veil-dots"/);
+  // 모달보다 위에 있어야 뒤쪽을 덮는다.
+  assert.match(css, /\.saving-veil \{ position:fixed; inset:0; z-index:30;/);
+  assert.match(css, /\.modal-backdrop \{ position:fixed; inset:0; z-index:20;/);
+  // 움직임 줄이기에서는 튀지 않는다.
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\n  \.saving-veil \{ backdrop-filter:none; \}/);
+  // 저장 중에는 닫기와 두 단추가 모두 잠긴다 — 막이 뚫려도 뒤에서 눌리지 않는다.
+  assert.match(studio, /className="modal-close" disabled=\{completionState === "saving"\}/);
+});
