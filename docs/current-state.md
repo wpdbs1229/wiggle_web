@@ -3,6 +3,42 @@
 > 마지막 갱신: 2026-09-23
 > 목적: 긴 대화가 압축되거나 담당 AI가 바뀌어도 실제 구현·검증·배포 상태를 잃지 않기 위한 기준 문서
 
+## 2026-09-25 참여 코드 뒤 「그림 자리」 (`claude/student-art-desk-20260925`)
+
+코덱스 인계 `docs/design-assets/student-art-desk-handoff-20260923/`(시안 `reference/selected-art-desk.png`) 구현.
+
+- **갈림길은 저장된 그림 총수 하나다.** 0장이면 중간 화면 없이 바로 `/student/draw/new?mode=free`,
+  1장 이상이면 「그림 자리」(`StudentArtDesk`)를 보여 준다. 페이지 크기(artworks 40장)가 아니라
+  `artworkTotal`로 본다 — 41장째부터 0장으로 읽히면 안 된다.
+- **그리던 그림을 자동으로 열지 않는다.** 종전 `StudentEntry`는 `latestUnfinishedArtwork`가 있으면
+  곧바로 그것을 열었고, 그래서 그리다 만 그림이 있는 아이는 **새 그림을 시작할 길이 아예 없었다.**
+  이제 목록 카드에서 아이가 직접 「이어 그리기」를 고른다.
+- 한 화면에 **내 그림(최근 3장) + 새 그림 그리기 + 내 그림책(2권)** 이 함께 있다. 나머지는 기존
+  `/student/archive`·`/student/books`로 보낸다 — 두 화면과 그림책 편집기는 **그대로 두었다.**
+- 시안을 배경 한 장으로 깔지 않았다. 바탕은 글자 없는 `desk-surface.webp` 하나뿐이고, 화분·문구·노트는
+  분리된 장식으로 모서리에만 놓았다(`aria-hidden`, `pointer-events:none`, 899px 미만 숨김).
+  그림·책 제목·쪽 수·상태·행동은 모두 실제 데이터와 DOM이다.
+- **책 표지 썸네일은 목록 응답에 없다**(`/api/storybooks`가 주지 않는다). 인계 지시대로 임의의 아이
+  그림을 만들어 넣지 않고 빈 책 틀 SVG + DOM 제목만 쓴다. 표지가 필요하면 별도 미리보기 경로가 필요하다.
+- 좁은 화면은 「새 그림 그리기」가 내 그림보다 **먼저** 보인다(인계 지시). CSS `order`로만 옮기면
+  보이는 차례와 탭 차례가 어긋나므로 DOM에서 먼저 두고, 1100px 이상에서만 `order`로 줄 끝에 보낸다.
+- 장식 에셋 9종을 `public/student-desk/`에 넣고 `public/brand/asset-manifest.json`에 출처·SHA-256과
+  함께 등록했다. 인계가 "필요 없으면 생략"이라 한 `crayons-edge.webp`(196KB)는 쓰지 않아 뺐다.
+
+**검증**: typecheck·lint(오류 0, 경고 14 — 기존 수준)·`npm test` **405/405**(새 시험 7개 포함)·
+production build·`git diff --check`·`browser-check` **전항목 통과**.
+320×568 / 390×844 / 844×390 / 1440×1000 실측: 페이지 가로 스크롤 0, 44px 미만 터치 목표 0,
+카드 안 링크 중첩 0, 장식은 1440에서만 3장 보이고 좁은 화면에서는 숨는다.
+0장 분기도 실측했다 — `/student`를 거치지 않고 바로 도화지로 갔다.
+
+두 군데의 **낡은 기대를 함께 고쳤다.** 둘 다 옛 자동 이동을 고정하고 있었다.
+- `tests/feedback-20260809.test.mjs` — `latestUnfinishedArtwork`로 자동 이동하던 단언.
+- `scripts/browser-check.mjs` 재입장 검사 — 도착지를 `/student/draw`로 못 박고 있었다. 이 검사가
+  지키는 것은 「동물을 다시 묻지 않는다」이므로, 도착지는 그림 수에 따라 달라지는 둘 다 받게 했다.
+
+남은 위험: 책 표지가 빈 틀이라 책이 여러 권이면 겉보기로 구분되지 않는다(제목·쪽 수는 글자로 있다).
+표지 썸네일 API는 이번 범위 밖이다.
+
 ## 2026-09-23 후속 화면 DESIGN.md 적용 (검증 완료, PR #18 제출)
 
 - 직전 PR #17은 main `e56896d`에 병합됨을 GitHub에서 확인했다. 해당 최신 main에서 `codex/design-system-audit-20260923` 분기. 최종 fetch에서도 main 변동 없음. 이번 디자인 수정은 아직 병합·배포하지 않았다.

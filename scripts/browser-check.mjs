@@ -368,9 +368,13 @@ async function main() {
             // 내 홈으로 넘어가는 순간 보낸 evaluate는 응답 없이 사라질 수 있어 시간 제한을 둔다.
             const settle = (expression) => Promise.race([evaluate(cdp, session, expression), new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 1500))]);
             try { reentryUrl = await settle("location.href"); askedAnimal = await settle("Boolean(document.querySelector('.animal-card'))"); } catch { continue; }
-            if (reentryUrl.includes("/student/draw") || askedAnimal) break;
+            if (reentryUrl.includes("/student/draw") || reentryUrl.endsWith("/student") || askedAnimal) break;
           }
-          check(reentryUrl.includes("/student/draw") && !askedAnimal, `${viewport.name} 쓰던 코드는 동물을 다시 묻지 않고 바로 도화지로 감`, { reentryUrl, askedAnimal });
+          /* 2026-09-25 「그림 자리」 이후: 저장된 그림이 있으면 /student(그림 자리)에 서고, 0장이면
+             예전처럼 바로 도화지로 간다. 이 검사가 지키는 것은 **동물을 다시 묻지 않는다**는 쪽이다 —
+             도착지 주소는 그림 수에 따라 달라지므로 둘 다 받는다. 하나만 고정하면 옛 흐름에 묶인다. */
+          const landed = reentryUrl.includes("/student/draw") || reentryUrl.endsWith("/student");
+          check(landed && !askedAnimal, `${viewport.name} 쓰던 코드는 동물을 다시 묻지 않고 내 자리로 감`, { reentryUrl, askedAnimal });
         }
 
         // 4) 잘못된 수업 코드: 글자 없이도 복구 행동이 보인다
