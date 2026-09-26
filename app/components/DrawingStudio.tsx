@@ -2,7 +2,7 @@
 
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
+import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
 import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas } from "@/lib/draw-renderer";
 import { mirrorOp } from "@/lib/symmetry";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
@@ -1998,7 +1998,7 @@ export function DrawingStudio() {
       return;
     }
     if (canvasFull) {
-      setSaveState("종이가 가득 찼어요. ‘완성’을 눌러 완성해요");
+      setSaveState("그림이 아주 커졌어요. ‘완성’을 눌러 저장해요");
       return;
     }
     // 한 번에 한 포인터만 그린다. 그렇지 않으면 태블릿에 얹은 손바닥 접촉이 각각 별도의 선이 된다.
@@ -2128,9 +2128,11 @@ export function DrawingStudio() {
       } else incoming.push(rawNext);
     }
     let addedPoint = false;
+    // 굵은 붓은 점을 촘촘히 담을 이유가 없다 — 렌더러가 점을 이어 그리므로 간격을 굵기에 맞춘다.
+    const gap = strokePointGap(meta.tool, meta.width);
     for (const next of incoming) {
       const last = points.at(-1);
-      if (last && Math.hypot((next.x - last.x) * 1024, (next.y - last.y) * 1024) >= 2.5) {
+      if (last && Math.hypot((next.x - last.x) * 1024, (next.y - last.y) * 1024) >= gap) {
         points.push(next);
         addedPoint = true;
       }
@@ -2174,7 +2176,7 @@ export function DrawingStudio() {
         const wholeStrokeFit = commitStroke(points.slice(), meta);
         if (!wholeStrokeFit) {
           endStroke(event);
-          setSaveState("종이가 가득 찼어요. ‘완성’을 눌러 완성해요");
+          setSaveState("그림이 아주 커졌어요. ‘완성’을 눌러 저장해요");
           return;
         }
         activePoints.current.set(event.pointerId, [points.at(-1)!]);
@@ -2272,9 +2274,10 @@ export function DrawingStudio() {
       const guideLock = guideTraceLocksRef.current.get(event.pointerId);
       const guidedRelease = guideLock ? snapGuideTrace(currentGuideTraces, guideLock, releasePoint) : null;
       const incoming = guidedRelease ? guidedRelease.points : [releasePoint];
+      const gap = strokePointGap(meta.tool, meta.width);
       for (const next of incoming) {
         const last = points.at(-1);
-        if (last && Math.hypot((next.x - last.x) * 1024, (next.y - last.y) * 1024) >= 2.5) points.push(next);
+        if (last && Math.hypot((next.x - last.x) * 1024, (next.y - last.y) * 1024) >= gap) points.push(next);
       }
     }
     activePoints.current.delete(event.pointerId);
@@ -2287,7 +2290,7 @@ export function DrawingStudio() {
     // 한도에 막혀 커밋되지 않으면 미리보기 픽셀을 문서 상태로 되돌린다.
     if (!commitStroke(points, meta)) {
       endStroke(event);
-      setSaveState("종이가 가득 찼어요. ‘완성’을 눌러 완성해요");
+      setSaveState("그림이 아주 커졌어요. ‘완성’을 눌러 저장해요");
       return;
     }
     if ((guidePhase === "practice" || guidePhase === "demo") && lessonGuideAvailable && meta.tool !== "eraser") setGuidePracticeTried(true);
@@ -2964,7 +2967,9 @@ export function DrawingStudio() {
             )}
             {canvasFull && (
               <div className="canvas-full-hint" role="alert">
-                <span aria-hidden="true">🌟</span> 종이가 가득 찼어! ‘완성’을 눌러 완성하자.
+                {/* 「종이가 가득 찼다」는 거짓말이었다 — 여백이 많아도 저장 용량이 먼저 찬다(2026-09-26 운영 보고).
+                    아이가 화면을 보고 납득할 수 있는 말로 바꾼다. */}
+                <span aria-hidden="true">🌟</span> 그림이 아주 커졌어! ‘완성’을 눌러 저장하자.
               </div>
             )}
             <div

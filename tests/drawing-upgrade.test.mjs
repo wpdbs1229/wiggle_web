@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { estimateDocumentBytes, estimateStrokeBytes, SHAPE_KINDS, STROKE_TOOLS, STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, validateDrawDocument } from "../lib/drawing-model.ts";
+import { estimateDocumentBytes, estimateStrokeBytes, SHAPE_KINDS, STROKE_TOOLS, STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, validateDrawDocument, MIN_POINT_GAP, strokePointGap, drawnStrokeWidth } from "../lib/drawing-model.ts";
 import { isMirrorOf, mirrorOp, undoGroupSize } from "../lib/symmetry.ts";
 import { clampView, coverPaper, IDENTITY_VIEW, minScaleFor, pinchView, zoomView } from "../lib/canvas-view.ts";
 
@@ -173,4 +173,30 @@ test("넓은 도화지는 전체가 보이는 배율보다 한 칸 더 줄어들
   const zoomed = zoomView({ scale: 1, x: 0, y: 0 }, 99, { x: 590, y: 377 }, ...box, limits);
   assert.equal(zoomed.scale, 4);
   assert.ok(zoomed.x <= 0 && zoomed.x >= 1180 - 3540 * 4, "가로 이동이 종이 안에 머문다");
+});
+
+test("굵은 붓은 점을 성글게 담고, 가는 붓은 예전 밀도를 지킨다", () => {
+  /* 2026-09-26 운영 보고: 여백이 많은데도 「종이가 가득 찼다」가 떴다. 넓이가 아니라 저장 용량
+     (1.25MB)이 먼저 찬 것이고, 그걸 채우는 건 점 개수다. 렌더러는 점을 찍지 않고 이어 그리므로
+     굵은 붓에 촘촘한 점은 낭비다. 간격을 보이는 굵기의 1/4로 잡되 바닥은 2.5를 지킨다. */
+  assert.equal(MIN_POINT_GAP, 2.5);
+  // 가는 연필: 바닥값이 걸려 예전과 같다 — 세밀한 그림의 밀도를 떨어뜨리지 않는다.
+  assert.equal(strokePointGap("pencil", 4), 2.5);
+  assert.equal(strokePointGap("pencil", 10), 2.5);
+  // 수채붓은 저장 굵기의 두 배로 그어진다 — 그 실제 굵기를 기준으로 성글어진다.
+  assert.equal(strokePointGap("watercolor", 16), 8);
+  assert.equal(strokePointGap("marker", 20), 8);
+  // 도구를 모르면 배율 1로 본다(옛 "pen" 획 등).
+  assert.equal(strokePointGap(undefined, 40), 10);
+  // 렌더러와 같은 배율을 써야 "보이는 굵기"가 어긋나지 않는다.
+  assert.equal(drawnStrokeWidth("watercolor", 16), 32);
+  assert.equal(drawnStrokeWidth("crayon", 16), 16);
+});
+
+test("성글게 담아도 한도까지 그릴 수 있는 양이 실제로 늘어난다", () => {
+  // 간격이 넓어지면 같은 길이를 긋는 데 쓰는 점이 줄고, 그만큼 더 오래 칠할 수 있다.
+  const path = 100_000; // 도화지 단위로 잰 붓이 지나간 총 거리
+  const before = path / MIN_POINT_GAP;
+  const after = path / strokePointGap("watercolor", 16);
+  assert.equal(Math.round(before / after * 10) / 10, 3.2, "굵은 수채붓은 점이 3.2배 적게 쌓인다");
 });

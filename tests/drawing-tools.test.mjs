@@ -4,13 +4,14 @@ import test from "node:test";
 
 const compactSource = (text) => text.replace(/\s+/g, " ");
 
-const [studio, css, renderer, messageCenter, drawingHistory, inputMode] = await Promise.all([
+const [studio, css, renderer, messageCenter, drawingHistory, inputMode, model] = await Promise.all([
   readFile(new URL("../app/components/DrawingStudio.tsx", import.meta.url), "utf8").then(compactSource),
   readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   readFile(new URL("../lib/draw-renderer.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/components/StudentMessageCenter.tsx", import.meta.url), "utf8"),
   readFile(new URL("../lib/drawing-history.ts", import.meta.url), "utf8").then(compactSource),
   readFile(new URL("../lib/input-mode.ts", import.meta.url), "utf8").then(compactSource),
+  readFile(new URL("../lib/drawing-model.ts", import.meta.url), "utf8"),
 ]);
 
 test("draw width and eraser width are remembered separately", () => {
@@ -172,7 +173,10 @@ test("teacher message banner can be dismissed but every message remains in histo
 
 test("marker and watercolor render distinctly from pencil", () => {
   // 마커는 가장 넓고 불투명, 수채붓은 옅고 넓게 + 번짐 패스. (기존 크레용·pen 값은 불변)
-  assert.match(renderer, /op\.tool === "marker" \? 1\.6 : op\.tool === "watercolor" \? 2 : 1/);
+  /* 굵기 배율은 2026-09-26부터 drawing-model의 TOOL_DRAWN_WIDTH_SCALE 한 곳에 있다 —
+     점 간격 계산이 같은 값을 써야 "보이는 굵기"가 어긋나지 않아서다. 값 자체는 그대로다. */
+  assert.match(renderer, /drawnStrokeWidth\(op\.tool, op\.width \?\? 8\) \* size \/ 1024/);
+  assert.match(model, /TOOL_DRAWN_WIDTH_SCALE: Record<string, number> = \{ marker: 1\.6, watercolor: 2 \}/);
   assert.match(renderer, /op\.tool === "crayon" \? 0\.62 : op\.tool === "watercolor" \? 0\.3 : 1/);
   assert.match(renderer, /if \(op\.tool === "watercolor"\) \{[\s\S]{0,300}globalAlpha = 0\.12/);
 });
