@@ -2909,18 +2909,22 @@ export function DrawingStudio() {
                             onChange={(event) => { setOwnAnswer(event.target.value); setPickedAnswer(""); setReplyError(""); }}
                             onKeyDown={(event) => { if (event.key === "Enter" && replyText) { event.preventDefault(); void sendReply(); } }} />
                         </label>
-                        <div className="grimi-answer-actions">
-                          <button type="button" className="button primary grimi-send" disabled={!replyText || replyState === "sending"} onClick={() => void sendReply()}>
-                            <span aria-hidden="true">✓</span>{replyState === "sending" ? "보내는 중…" : "이렇게 답할래"}
-                          </button>
-                          {/* 답하지 않고 나가는 길. 접기 단추와 같은 동작이라 같은 class를 쓴다. */}
-                          <button type="button" className="grimi-collapse grimi-go-draw" onClick={() => setGrimiCollapsed(true)}>
-                            <span aria-hidden="true">✏️</span> 그리러 가기
-                          </button>
-                        </div>
-                        {replyError && <p className="grimi-reply-error" role="alert">{replyError}</p>}
                       </div>
                     )}
+                    {/* 이 줄은 답하기 블록 **밖에** 있다. 안에 두었더니 답을 보낸 뒤 「그리러 가기」가 같이
+                        사라져, 방금 답한 아이에게 남는 길이 이벤트를 dismiss 하는 ×뿐이었다(2026-09-26).
+                        낮은 시트에서 이 줄을 바닥에 붙이는 sticky 규칙도 이 wrapper를 잡으므로 함께 옮긴다. */}
+                    <div className="grimi-answer-actions">
+                      {replyState !== "sent" && (
+                        <button type="button" className="button primary grimi-send" disabled={!replyText || replyState === "sending"} onClick={() => void sendReply()}>
+                          <span aria-hidden="true">✓</span>{replyState === "sending" ? "보내는 중…" : "이렇게 답할래"}
+                        </button>
+                      )}
+                      <button type="button" className="grimi-collapse grimi-go-draw" onClick={() => setGrimiCollapsed(true)}>
+                        <span aria-hidden="true">✏️</span> 그리러 가기
+                      </button>
+                    </div>
+                    {replyError && <p className="grimi-reply-error" role="alert">{replyError}</p>}
                     {/* 「다른 것도 물어보기」는 2026-09-26에 없앴다(사용자 결정). 머리 줄의 「몽그리 부르기」와
                         **완전히 같은 askGrimi()**였고 카드가 열린 동안 둘 다 보여 같은 단추가 둘이었다.
                         다시 묻는 길은 머리 줄 하나로 모은다 — 카드도 그만큼 짧아진다. */}

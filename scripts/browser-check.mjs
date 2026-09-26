@@ -735,8 +735,19 @@ async function main() {
           again?.scrollIntoView({ block: 'center' });
           await wait(250);
           const afterScroll = { confirm: reach(again), close: reach(close), exit: reach(exit), confirmBox: again ? window.__wiggle.box(again) : null };
+          /* 답을 보낸 **뒤에도** 나갈 길이 남는가. 「그리러 가기」를 답하기 블록 안에 두었더니
+             보내는 순간 같이 사라져, 방금 답한 아이에게 남는 길이 dismiss인 ×뿐이었다(2026-09-26). */
+          let afterSend = { skipped: 'send-disabled' };
+          if (sendButton && !sendButton.disabled) {
+            sendButton.click();
+            for (let attempt = 0; attempt < 40 && !panel.querySelector('.grimi-replied'); attempt += 1) await wait(150);
+            const sentExit = panel.querySelector('.grimi-go-draw');
+            sentExit?.scrollIntoView({ block: 'center' });
+            await wait(250);
+            afterSend = { replied: Boolean(panel.querySelector('.grimi-replied')), exit: reach(sentExit) };
+          }
           const nestedScrollers = [...panel.querySelectorAll('*')].filter((element) => element !== scroll && element.scrollHeight - element.clientHeight > 4 && ['auto', 'scroll'].includes(getComputedStyle(element).overflowY));
-          return { startState, afterScroll, nestedScrollers: nestedScrollers.map((element) => window.__wiggle.label(element)), scrollerHeight: scroll.clientHeight, contentHeight: scroll.scrollHeight };
+          return { startState, afterScroll, afterSend, nestedScrollers: nestedScrollers.map((element) => window.__wiggle.label(element)), scrollerHeight: scroll.clientHeight, contentHeight: scroll.scrollHeight };
         })()`);
         check(!coaching.error, `${viewport.name} 코칭 내용 레이아웃 재현`, coaching.error);
         if (!coaching.error) {
@@ -752,6 +763,8 @@ async function main() {
           check(Boolean(coaching.startState.exit), `${viewport.name} 코칭 중에 「그리러 가기」가 있음`, coaching.startState.exit);
           check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 '이렇게 답할래'에 닿음`, coaching.afterScroll.confirm);
           check(coaching.afterScroll.close?.hitsSelf && coaching.afterScroll.exit?.hitsSelf, `${viewport.name} 스크롤 뒤에도 닫기·「그리러 가기」가 그대로 보임`, coaching.afterScroll);
+          check(coaching.afterSend.replied === true, `${viewport.name} 답을 보내면 알려 줬다는 확인이 뜸`, coaching.afterSend);
+          check(coaching.afterSend.exit?.hitsSelf, `${viewport.name} 답을 보낸 뒤에도 「그리러 가기」로 나갈 수 있음`, coaching.afterSend);
           check(coaching.nestedScrollers.length === 0, `${viewport.name} 시트 안에 숨은 중첩 스크롤이 없음`, coaching.nestedScrollers);
         }
 

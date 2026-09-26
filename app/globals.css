@@ -2316,10 +2316,12 @@ body {
 .grimi-own input:focus { outline:none; }
 .grimi-own:focus-within { border-color:#2f6b3f; }
 
-.grimi-answer-actions { display:flex; gap:10px; }
+.grimi-answer-actions { display:flex; gap:10px; margin-top:10px; }
 .studio .grimi-send { flex:1 1 auto; min-height:52px; }
 .studio .grimi-go-draw { flex:0 0 auto; min-height:52px; }
-.grimi-reply-error { margin:0; color:#9f2f2f; font-size:14px; font-weight:800; }
+/* 답을 보낸 뒤에는 이 줄에 「그리러 가기」만 남는다 — 혼자 남으면 폭을 다 쓴다. */
+.studio .grimi-answer-actions:not(:has(.grimi-send)) .grimi-go-draw { flex:1 1 auto; }
+.grimi-reply-error { margin:8px 0 0; color:#9f2f2f; font-size:14px; font-weight:800; }
 .grimi-replied { margin:14px 0 0; padding:12px 14px; border-radius:14px; background:#eef8ea; color:#1d6725; font-size:15px; font-weight:800; line-height:1.5; }
 
 /* 넓은 가로 화면: 도화지 왼쪽 위에 떠 있는 카드(사용자가 고른 3번 시안).
@@ -2331,8 +2333,9 @@ body {
   .studio-body.grimi-open:not(:has(.step-panel))>.canvas-zone { grid-column:1; }
   .studio-body>.grimi-panel {
     position:absolute; z-index:14; left:clamp(12px,1.8vw,26px); top:clamp(8px,1.4vh,18px);
-    width:min(560px,46vw);
-    padding:16px 18px 14px; border:0; border-radius:26px; background:#fffdf1;
+    /* 2026-09-26 사용자: "그림 그리는데 너무 방해될 정도로 커". 도화지를 가리는 넓이를 줄인다. */
+    width:min(400px,32vw);
+    padding:12px 14px 12px; border:0; border-radius:22px; background:#fffdf1;
     box-shadow:0 16px 44px rgba(56,40,12,.22); overflow:visible;
     /* 세로 flex라야 가운데만 스크롤하고 「그냥 내 마음대로 그릴래」가 카드 밖으로 밀려나지 않는다. */
     display:flex; flex-direction:column;
@@ -2352,7 +2355,10 @@ body {
   .studio-body>.grimi-panel .grimi-head { position:relative; }
   /* 카드 밖으로 걸치되 머리 줄까지 올라가면 안 된다 — `.studio`가 overflow:hidden이라 거기서 잘린다
      (2026-09-26 실측: 위로 5px 넘쳐 잘림). 걸치는 느낌은 남기고 넘치지 않을 만큼만 올린다. */
-  .studio-body>.grimi-panel .grimi-face { width:84px; height:84px; margin:-16px 0 0 -26px; pointer-events:none; }
+  .studio-body>.grimi-panel .grimi-face { width:64px; height:64px; margin:-12px 0 0 -20px; pointer-events:none; }
+  /* 이름을 말줄임하려고 넣은 `.grimi-head>div`의 overflow:hidden이 **내민 얼굴을 잘라 냈다**
+     (2026-09-26 실측: 부모 overflow:hidden). 말줄임은 안쪽 <b>가 스스로 하므로 여기서는 풀어 준다. */
+  .studio-body>.grimi-panel .grimi-head>div { overflow:visible; }
   /* 이름 뒤 노란 크레용 칠. 글자는 DOM이다. */
   .studio-body>.grimi-panel .grimi-head>div>b {
     padding:2px 14px 4px; background:url("/mongri-card/name-swash.webp") center/100% 100% no-repeat; color:#5b4a08;
@@ -2368,4 +2374,16 @@ body {
     position:sticky; bottom:0; z-index:1; padding-block:8px;
     background:#fffdf1; box-shadow:0 -6px 14px rgba(255,253,241,.92);
   }
+}
+
+/* 좁아진 플로팅 카드에 맞춘 글자·여백(2026-09-26). 터치 목표 52px은 그대로 둔다. */
+@media (min-width:900px) and (min-height:600px) {
+  .studio-body>.grimi-panel .grimi-observed { margin:0 0 10px; padding:8px 10px; font-size:14px; }
+  .studio-body>.grimi-panel .grimi-coaching h2 { font-size:17px; margin:2px 0 10px; }
+  .studio-body>.grimi-panel .next-action { margin-top:10px; padding:10px; }
+  .studio-body>.grimi-panel .grimi-answer { gap:8px; margin-top:10px; }
+  .studio-body>.grimi-panel .grimi-chip { min-width:0; padding:6px 10px; font-size:15px; }
+  .studio-body>.grimi-panel .grimi-chip-emoji { font-size:19px; }
+  .studio-body>.grimi-panel .grimi-own-name { padding:6px 8px; font-size:13px; }
+  .studio-body>.grimi-panel .grimi-send { font-size:15px; }
 }
