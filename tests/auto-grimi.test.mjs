@@ -115,7 +115,10 @@ test("몽그리 카드에서 바로 답하되, 읽기 전용으로 갔던 세 �
   assert.match(studio, /<p className="eyebrow">몽그리가 궁금해요<\/p>[\s\S]{0,200}<h2>\{coaching\.question\}<\/h2>/);
   // 다음 행동은 조건 없이 보인다 — 예전에는 `{answer && (` 뒤에 있었다.
   assert.match(studio, /<div className="next-action">\s*<small>이제 그려 볼 일<\/small>/);
-  assert.match(studio, /className="button secondary full grimi-again"[\s\S]{0,240}다른 것도 물어보기/);
+  /* 「다른 것도 물어보기」는 2026-09-26에 없앴다 — 머리 줄 「몽그리 부르기」와 같은 askGrimi()였다.
+     다시 묻는 길이 사라지면 안 되므로, 그 길이 머리 줄에 하나 남아 있는지를 대신 지킨다. */
+  assert.doesNotMatch(studio, /className="button secondary full grimi-again"/);
+  assert.match(studio, /className="studio-action is-helper"[\s\S]{0,400}몽그리 부르기/);
   assert.match(css, /\.grimi-observed \{/);
 
   // ③ 칩을 고르면 즉시 표가 난다. 색만으로 구분하지 않는다.

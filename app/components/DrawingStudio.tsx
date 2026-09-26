@@ -2921,10 +2921,9 @@ export function DrawingStudio() {
                         {replyError && <p className="grimi-reply-error" role="alert">{replyError}</p>}
                       </div>
                     )}
-                    <button type="button" className="button secondary full grimi-again" disabled={grimiLoading} onClick={() => void askGrimi()}>
-                      <span aria-hidden="true">✨</span>
-                      다른 것도 물어보기
-                    </button>
+                    {/* 「다른 것도 물어보기」는 2026-09-26에 없앴다(사용자 결정). 머리 줄의 「몽그리 부르기」와
+                        **완전히 같은 askGrimi()**였고 카드가 열린 동안 둘 다 보여 같은 단추가 둘이었다.
+                        다시 묻는 길은 머리 줄 하나로 모은다 — 카드도 그만큼 짧아진다. */}
                   </div>
                 )}
               </div>

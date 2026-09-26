@@ -712,7 +712,10 @@ async function main() {
              (이 문자열은 바깥 템플릿 리터럴 안이라 백틱을 쓰면 문자열이 끊긴다.) */
           const question = panel.querySelector('.grimi-coaching h2');
           const nextAction = panel.querySelector('.next-action');
-          const again = panel.querySelector('.grimi-again');
+          /* 「다른 것도 물어보기」는 2026-09-26에 없앴다(머리 줄 「몽그리 부르기」와 같은 동작).
+             이 검사가 지키는 것은 "시트 맨 아래 행동에 스크롤 한 번으로 닿는다"이므로,
+             이제 그 자리인 주 행동 「이렇게 답할래」를 본다. */
+          const again = panel.querySelector('.grimi-send');
           const chips = [...panel.querySelectorAll('.grimi-chip')];
           /* 「그냥 내 마음대로 그릴래」(.free-exit)는 2026-09-26에 없앴다 — ×와 같은 dismissGrimi라 중복이었다.
              지켜야 할 것은 "답을 강요받지 않고 나갈 길이 늘 닿는다"이고, 이제 그 길은 「그리러 가기」다. */
@@ -728,7 +731,7 @@ async function main() {
             pickShowsMark = chips[0].getAttribute('aria-pressed') === 'true' && Boolean(chips[0].querySelector('.grimi-chip-check'));
           }
           const startState = { question: reach(question), nextAction: reach(nextAction), close: reach(close), exit: reach(exit), chipCount: chips.length, sendDisabledAtFirst, pickShowsMark };
-          // 아이가 맨 아래 행동(다른 것도 물어보기)까지 이동하는 경로: 시트 안쪽 스크롤 한 번
+          // 아이가 맨 아래 행동(이렇게 답할래)까지 이동하는 경로: 시트 안쪽 스크롤 한 번
           again?.scrollIntoView({ block: 'center' });
           await wait(250);
           const afterScroll = { confirm: reach(again), close: reach(close), exit: reach(exit), confirmBox: again ? window.__wiggle.box(again) : null };
@@ -747,7 +750,7 @@ async function main() {
           check(coaching.startState.close?.hitsSelf, `${viewport.name} 코칭 중에도 닫기가 고정되어 보임`, coaching.startState.close);
           // 「그리러 가기」는 존재하고 스크롤 뒤에 닿아야 한다(바로 아래 afterScroll 검사). 여기서는 있는지만 본다.
           check(Boolean(coaching.startState.exit), `${viewport.name} 코칭 중에 「그리러 가기」가 있음`, coaching.startState.exit);
-          check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 '다른 것도 물어보기'에 닿음`, coaching.afterScroll.confirm);
+          check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 '이렇게 답할래'에 닿음`, coaching.afterScroll.confirm);
           check(coaching.afterScroll.close?.hitsSelf && coaching.afterScroll.exit?.hitsSelf, `${viewport.name} 스크롤 뒤에도 닫기·「그리러 가기」가 그대로 보임`, coaching.afterScroll);
           check(coaching.nestedScrollers.length === 0, `${viewport.name} 시트 안에 숨은 중첩 스크롤이 없음`, coaching.nestedScrollers);
         }
