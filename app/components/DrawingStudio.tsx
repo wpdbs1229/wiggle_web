@@ -2762,7 +2762,9 @@ export function DrawingStudio() {
   return (
     <main className={`studio${dockOpen ? "" : " dock-collapsed"}`}>
       <header className="studio-header">
-        <a className="icon-button studio-back" href="/student/archive" aria-label="내 그림으로 나가기">
+        {/* 2026-09-26: 아이의 집은 이제 「그림 자리」(/student)다 — 내 그림·새 그림·내 그림책이 함께 있다.
+            여기서 옛 보관함으로 바로 보내면 아이가 오늘 만든 자리를 못 본다. 보관함은 그 자리에서 한 번에 간다. */}
+        <a className="icon-button studio-back" href="/student" aria-label="내 그림 자리로 나가기">
           <ArrowLeftIcon />
         </a>
         <Logo compact />
