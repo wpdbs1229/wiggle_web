@@ -55,7 +55,9 @@ test("자동 호출도 수동과 같은 안전 규칙을 지난다", async () =>
   assert.equal((studio.match(/action: "ask"/g) ?? []).length, 1);
   assert.match(studio, /void askGrimi\(\{ auto: true \}\)/);
   // 서버의 학생당 상한은 그대로다(10분에 8번).
-  assert.match(route, /rateLimit\(`ai-create:\$\{student\.id\}`, 8, 10 \* 60\)/);
+  // 10분 20회(2026-09-26 사용자 결정으로 8 → 20). 답 뒤 제안을 다시 쓰는 호출은 이 예산을
+  // 쓰지 않는다 — 도움 기록당 첫 답 한 번으로 묶여 있어 ask 횟수를 넘을 수 없다.
+  assert.match(route, /rateLimit\(`ai-create:\$\{student\.id\}`, 20, 10 \* 60\)/);
   // 평가·판정 금지는 프롬프트에 그대로 남아 있어야 한다.
   assert.match(prompts, /점수, 순위, 칭찬 판정, 평가, 재능 진단/);
 });
@@ -69,7 +71,12 @@ test("프롬프트가 역할·대상과 어긋나지 않는다", async () => {
   assert.doesNotMatch(prompts, /1~2학년|저학년/);
   // 스키마가 next_action을 필수로 강제하므로, "앞서 끌고 가지 않는다"로 부정하지 않는다.
   assert.doesNotMatch(collaborator, /앞서 끌고 가지 않는다/);
-  assert.match(collaborator, /행동 하나만 제안하고, 새 주제로 옮기지 않는다/);
+  /* 2026-09-26 사용자 결정: 「깊이로(그 대상을 더)」와 「옆으로(어울리는 것을 하나 더)」 중
+     어느 쪽을 줘도 상관없다. 새 주제를 막던 줄은 뺐다. 지켜야 할 것은 **한 번에 하나**와
+     출발점이 아이라는 것뿐이다. */
+  assert.match(collaborator, /행동 하나만 제안한다/);
+  assert.match(collaborator, /아이가 그린 것이나 아이가 알려 준 답에서 출발해/);
+  assert.doesNotMatch(collaborator, /새 주제로 옮기지 않는다|새 소재나 새 주제를 네가 가져오지 않는다/);
   // uncertain일 때 next_action도 단정하지 않아야 한다 — 플래그가 장식으로 남지 않게.
   assert.match(collaborator, /uncertain=true이면 next_action도/);
   // 누가 먼저 말을 걸었는지 모델이 알아야 말투를 고를 수 있다.
@@ -162,4 +169,34 @@ test("즉시 답하기는 그린 뒤 기록과 다른 경로이고, 답을 바�
   assert.doesNotMatch(reply, /already_recorded|COACHING_ALREADY_HANDLED/);
   // 그린 뒤 기록 경로는 그대로 남아 있다.
   assert.match(route, /kind: "question_answer"/);
+});
+
+test("답을 들으면 「이제 그려 볼 일」 한 줄을 아이 말에 맞춰 다시 쓴다", async () => {
+  const route = await read("../app/api/ai/coaching/route.ts");
+  const prompts = await read("../lib/openai-coaching.ts");
+  const studio = await read("../app/components/DrawingStudio.tsx");
+  const reply = route.slice(route.indexOf('if (action === "reply")'), route.indexOf('if (action === "answer")'));
+
+  /* 2026-09-26 사용자 결정. 물어만 보고 답을 쓰지 않으면 아이 눈에는 답해도 아무 일이 없는 것과 같다.
+     화면에 떠 있는 「이제 그려 볼 일」은 아이가 답하기 **전에** 만들어진 말이라 그 한 줄만 다시 받는다. */
+  assert.match(reply, /kind: "reply_next_action"/);
+  // 새 질문을 하지 않는다 — 카드가 도화지를 가리고 있고 "한 번에 하나만 묻는다"가 제품 원칙이다.
+  assert.doesNotMatch(prompts.slice(prompts.indexOf("REPLY_NEXT_ACTION_INSTRUCTIONS"), prompts.indexOf("export const STORY_INTERPRETATION")), /질문은 정확히 하나|choices/);
+  assert.match(prompts, /새로 묻지 말고/);
+
+  // 예산: 도움 기록당 첫 답 한 번만 부른다. 답을 고쳐 보내면 글자만 덮어쓴다.
+  assert.match(reply, /const firstAnswer = before\?\.status !== "answered";/);
+  assert.match(reply, /if \(!firstAnswer\) return noStoreJson\(\{ ok: true, answer \}\);/);
+
+  // 몽그리가 쉬어도 답은 이미 저장됐다 — 실패는 화면의 종전 줄을 그대로 둔다.
+  assert.match(reply, /\} catch \{\s*\n\s*return noStoreJson\(\{ ok: true, answer \}\);/);
+
+  // 안전 검사는 코칭의 next_action과 같은 것을 쓴다(규칙이 갈라지면 한쪽에 구멍이 남는다).
+  assert.match(prompts, /drawingActionPattern\.test\(nextAction\) \|\| !isChildSafeCoachingText\(nextAction\)/);
+
+  // 그림을 싣지 않는다 — 아이가 「이렇게 답할래」를 누른 뒤 기다리지 않아야 한다.
+  assert.doesNotMatch(reply, /imageDataUrl/);
+
+  // 화면은 그 자리에서 줄만 바꾼다. 오지 않으면 그대로 둔다.
+  assert.match(studio, /if \(data\.nextAction\) setCoaching\(\(current\) => current \? \{ \.\.\.current, nextAction: data\.nextAction as string \} : current\);/);
 });

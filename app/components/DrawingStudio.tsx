@@ -2669,9 +2669,13 @@ export function DrawingStudio() {
         method: "POST",
         body: JSON.stringify({ action: "reply", artworkId: artwork.id, eventId: coaching.eventId, answer: replyText }),
       });
-      const data = await response.json() as { error?: string };
+      const data = await response.json() as { error?: string; nextAction?: string };
       if (!response.ok) throw new Error(data.error ?? "답을 보내지 못했어요.");
       setReplyState("sent");
+      /* 화면에 떠 있던 「이제 그려 볼 일」은 아이가 답하기 **전에** 만들어진 말이다. 아이가 무엇인지
+       * 알려 줬으니 그 자리에서 아이 말에 맞춘 줄로 바꾼다(2026-09-26 사용자 결정).
+       * 몽그리가 쉬면 nextAction이 오지 않고, 그때는 종전 줄을 그대로 둔다 — 답은 이미 저장됐다. */
+      if (data.nextAction) setCoaching((current) => current ? { ...current, nextAction: data.nextAction as string } : current);
     } catch (cause) {
       // 보내지 못하면 다시 누를 수 있게 되돌린다. 아이가 쓴 글자는 지우지 않는다.
       setReplyState("idle");

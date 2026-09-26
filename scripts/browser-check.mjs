@@ -138,6 +138,9 @@ const STUB_INTERPRETATION = {
   },
 };
 
+// 답을 들은 뒤 몽그리가 다시 쓰는 줄. 종전 next_action과 글자가 달라야 바뀐 것을 잴 수 있다.
+const STUB_REPLY_NEXT_ACTION = "그 옆에 어울리는 것을 하나 더 그려 넣어 볼까";
+
 async function stubCoaching(cdp, session) {
   cdp.on("Fetch.requestPaused", async (params, eventSession) => {
     const target = eventSession ?? session;
@@ -147,7 +150,11 @@ async function stubCoaching(cdp, session) {
         // 코칭 응답이 대신 돌아가는 일이 없다.
         let action = "";
         try { action = JSON.parse(params.request.postData ?? "{}").action ?? ""; } catch { action = ""; }
-        const payload = action === "interpret" ? STUB_INTERPRETATION : STUB_COACHING;
+        /* `reply`는 답을 저장하고 「이제 그려 볼 일」 한 줄만 새로 돌려준다(2026-09-26).
+           코칭 응답을 그대로 돌려주면 화면이 줄을 바꾸지 않아 그 계약을 검사할 수 없다. */
+        const payload = action === "interpret" ? STUB_INTERPRETATION
+          : action === "reply" ? { ok: true, answer: "", nextAction: STUB_REPLY_NEXT_ACTION }
+          : STUB_COACHING;
         const body = Buffer.from(JSON.stringify(payload)).toString("base64");
         await cdp.send("Fetch.fulfillRequest", { requestId: params.requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "application/json" }], body }, target);
         return;
@@ -744,7 +751,8 @@ async function main() {
             const sentExit = panel.querySelector('.grimi-go-draw');
             sentExit?.scrollIntoView({ block: 'center' });
             await wait(250);
-            afterSend = { replied: Boolean(panel.querySelector('.grimi-replied')), exit: reach(sentExit) };
+            afterSend = { replied: Boolean(panel.querySelector('.grimi-replied')), exit: reach(sentExit),
+              nextActionText: (panel.querySelector('.next-action b')?.textContent ?? '').trim() };
           }
           const nestedScrollers = [...panel.querySelectorAll('*')].filter((element) => element !== scroll && element.scrollHeight - element.clientHeight > 4 && ['auto', 'scroll'].includes(getComputedStyle(element).overflowY));
           return { startState, afterScroll, afterSend, nestedScrollers: nestedScrollers.map((element) => window.__wiggle.label(element)), scrollerHeight: scroll.clientHeight, contentHeight: scroll.scrollHeight };
@@ -765,6 +773,9 @@ async function main() {
           check(coaching.afterScroll.close?.hitsSelf && coaching.afterScroll.exit?.hitsSelf, `${viewport.name} 스크롤 뒤에도 닫기·「그리러 가기」가 그대로 보임`, coaching.afterScroll);
           check(coaching.afterSend.replied === true, `${viewport.name} 답을 보내면 알려 줬다는 확인이 뜸`, coaching.afterSend);
           check(coaching.afterSend.exit?.hitsSelf, `${viewport.name} 답을 보낸 뒤에도 「그리러 가기」로 나갈 수 있음`, coaching.afterSend);
+          /* 답하기 전의 「이제 그려 볼 일」은 아이가 무엇을 그리는지 모르고 쓴 말이다.
+             답을 보내면 그 자리에서 아이 말에 맞춘 줄로 바뀌어야 한다(2026-09-26 사용자 결정). */
+          check(coaching.afterSend.nextActionText === STUB_REPLY_NEXT_ACTION, `${viewport.name} 답을 보내면 '이제 그려 볼 일'이 아이 말에 맞춰 바뀜`, coaching.afterSend.nextActionText);
           check(coaching.nestedScrollers.length === 0, `${viewport.name} 시트 안에 숨은 중첩 스크롤이 없음`, coaching.nestedScrollers);
         }
 
