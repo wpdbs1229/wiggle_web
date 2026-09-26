@@ -579,6 +579,10 @@ export function DrawingStudio() {
   // 닫은 메시지 id를 기억하고, 새 메시지가 오면 다시 보여 준다.
   const [teacherMessages, setTeacherMessages] = useState<StudentTeacherMessage[]>([]);
   const [teacherViewing, setTeacherViewing] = useState(false);
+  /* 배너는 선생님이 보는 **동안 내내** 떠 있어 그림을 가렸다(2026-09-26 사용자 지적).
+   * 알림은 알림이고 상태가 아니다 — 보기 시작할 때 5초만 띄운다. `teacherViewing` 자체는
+   * 자동 저장 간격과 자동 호출 억제가 쓰므로 건드리지 않고, 배너 표시만 따로 둔다. */
+  const [viewingNoticeOpen, setViewingNoticeOpen] = useState(false);
   // 선생님 표시(아이 원본과 따로 된 층)와 손들기(2026-09-14). 표시는 작품 ops에 넣지 않는다.
   const [teacherMark, setTeacherMark] = useState<{ id: string; artworkId: string; strokes: MarkStroke[]; note: string } | null>(null);
   const [handRaised, setHandRaised] = useState(false);
@@ -588,6 +592,13 @@ export function DrawingStudio() {
   const pollFastRef = useRef(false);
   // 자동 저장 간격만 바꾸면 되므로 ref로 읽는다. 저장 효과의 의존성에 넣으면 보기 시작·끝마다 바뀐 것 없는 저장이 한 번 더 나간다.
   const teacherViewingRef = useRef(false);
+  useEffect(() => {
+    if (!teacherViewing) { setViewingNoticeOpen(false); return; }
+    // 폴링이 같은 true를 다시 넣어도 React가 값을 바꾸지 않아 이 효과는 다시 돌지 않는다.
+    setViewingNoticeOpen(true);
+    const timer = setTimeout(() => setViewingNoticeOpen(false), 5000);
+    return () => clearTimeout(timer);
+  }, [teacherViewing]);
   const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [conflictDraft, setConflictDraft] = useState<QueuedArtworkDraft | null>(null);
   const [grimiOpen, setGrimiOpen] = useState(false);
@@ -2819,9 +2830,9 @@ export function DrawingStudio() {
           </div>
         </div>
       )}
-      {teacherViewing && !visibleMark && (
+      {viewingNoticeOpen && !visibleMark && (
         <div className="teacher-viewing" role="status">
-          선생님이 지금 내 그림을 보고 있어요.
+          선생님이 내 도화지를 보고 있어요.
         </div>
       )}
       <div className={`studio-body ${grimiOpen || lesson ? "" : "without-step-panel"}${grimiOpen ? " grimi-open" : ""}${grimiOpen && grimiCollapsed ? " grimi-collapsed" : ""}${studioTool === "shape" || studioTool === "text" ? " tool-options-open" : ""}`}>
