@@ -65,6 +65,29 @@ export async function POST(request: Request) {
     return noStoreJson({ ok: true });
   }
 
+  /* 즉시 답하기 (2026-09-26 인계 mongri-floating-handoff). 아이가 카드에서 선택지를 고르거나
+   * 자기 말로 답한 것을 그 자리에서 기록한다. 아래 `answer`와 섞지 않는 이유가 셋이다.
+   *  ① `answer`는 "답하고 **그린 뒤**"를 기록하는 경로라 document·image·newElements를 요구한다.
+   *     즉시 답에는 그린 것이 없어 그때 문서를 그대로 보내면 before와 같은 after 버전이 남는다.
+   *  ② `answer`는 한 번 기록되면 409 `이미 처리한 도움 기록이에요`를 낸다. 아이가 고른 답을
+   *     바꾸면 그대로 막혔다 — 2026-09-23에 왕복을 걷어낸 세 이유 중 하나다. 여기서는 덮어쓴다.
+   *  ③ 답은 다음 질문의 맥락(recentContext)으로만 쓰이므로 새 작품 버전을 만들 이유가 없다. */
+  if (action === "reply") {
+    if (!(await rateLimit(`ai-reply:${student.id}`, 60, 60))) return jsonError("잠깐 쉬었다가 다시 눌러 주세요.", 429);
+    const eventId = cleanText(payload.eventId, 80);
+    const answer = cleanText(payload.answer, 80);
+    if (!eventId || !answer) return jsonError("답을 고르거나 적어 주세요.");
+    const event = await findOwnedCoachingEvent(db, eventId, artworkId, student.id);
+    if (!event) return jsonError("이 도움 기록을 찾을 수 없어요.", 404);
+    // 답을 바꿔도 같은 줄을 덮어쓴다 — 두 번째 답이 409로 막히지 않는다.
+    const saved = await db.batch([
+      db.prepare(`UPDATE coaching_events SET student_answer = ? WHERE id = ?`).bind(answer, eventId),
+      db.prepare(`UPDATE coaching_event_details SET status = 'answered', updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND response_kind = 'question' AND status <> 'dismissed'`).bind(eventId),
+    ]);
+    if (!saved[0]?.meta.changes) return jsonError("답을 저장하지 못했어요. 잠시 뒤 다시 해 주세요.", 503);
+    return noStoreJson({ ok: true, answer });
+  }
+
   if (action === "answer") {
     if (!(await rateLimit(`ai-answer:${student.id}`, 30, 60))) return jsonError("잠깐 쉬었다가 다시 눌러 주세요.", 429);
     const eventId = cleanText(payload.eventId, 80); const answer = cleanText(payload.answer, 80); const newElements = stringList(payload.newElements, 4, 40);
@@ -118,8 +141,15 @@ export async function POST(request: Request) {
   const childChoice = cleanText(payload.childChoice, 80);
   // 아이가 불렀는지 몽그리가 먼저 말을 걸었는지 알려 준다 — 프롬프트가 이 값으로 말투를 고른다.
   const openedBy = payload.openedBy === "mongri" ? "mongri" : "child";
-  const context = { artworkIntent: artwork.intent, artworkTopic: artwork.topic, childChoice, openedBy, currentStep: artwork.currentStep, recentEvents: await recentContext(artworkId) };
-  const prompt = `현재 작품 맥락(JSON): ${JSON.stringify(context)}\n그림을 관찰하고, 아이가 이미 그린 것을 이어 가는 질문 하나와 실제 다음 그리기 행동을 제안해 줘.`;
+  const recentEvents = await recentContext(artworkId);
+  /* 첫 만남이면 알아맞히지 말고 **무엇을 그리는지 묻는다**(2026-09-26 사용자 결정).
+   * 몽그리가 스스로 판정하려다 빗나가던 것이 뜬금없는 대답의 뿌리였다(미결정 P-014).
+   * 아이가 한 번 알려 주면 그 답이 recentEvents로 돌아와 이후 질문이 그 위에서 이어진다. */
+  const firstTurn = recentEvents.length === 0;
+  const context = { artworkIntent: artwork.intent, artworkTopic: artwork.topic, childChoice, openedBy, firstTurn, currentStep: artwork.currentStep, recentEvents };
+  const prompt = firstTurn
+    ? `현재 작품 맥락(JSON): ${JSON.stringify(context)}\n이 그림에 대해 처음 말을 거는 자리다. 무엇을 그리고 있는지 아이에게 물어보고, 네가 보기에 그럴듯한 것들을 고를 수 있는 답으로 함께 줘.`
+    : `현재 작품 맥락(JSON): ${JSON.stringify(context)}\n그림을 관찰하고, 아이가 이미 그린 것을 이어 가는 질문 하나와 실제 다음 그리기 행동을 제안해 줘.`;
   try {
     const result = await requestStructuredOpenAI({
       kind: "student_coaching",

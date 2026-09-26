@@ -2289,3 +2289,70 @@ body {
 .create-class-roster .trs-row-remove { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0; border:0; background:none; color:var(--tw-muted); }
 .create-class-roster .trs-row-remove:disabled { opacity:.3; }
 .create-class-roster .trs-row-add { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:8px 12px; border:1px solid var(--tw-line); border-radius:6px; background:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+
+/* ── 몽그리 플로팅 카드 + 카드에서 바로 답하기 ────────────────────────────────
+   2026-09-26, 코덱스 인계 docs/design-assets/mongri-floating-handoff-20260926.
+   시안(reference/selected-floating-answer.png)은 위치·분위기 기준이고, 질문·선택지·버튼 글자는
+   전부 실제 데이터와 DOM이다. 장식 WebP 세 장만 쓰고 시안 자체를 배경으로 깔지 않는다. */
+
+/* 답하기 — 폭과 무관하게 같은 모양. 아이가 선택지 하나를 고르거나 자기 말로 쓴다. */
+.grimi-answer { display:grid; gap:10px; margin-top:14px; }
+.grimi-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.studio .grimi-chip,
+.grimi-chip {
+  flex:1 1 auto; min-width:104px; min-height:52px; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:8px 14px; border:2px solid #efe6c8; border-radius:16px; background:#fffdf5;
+  color:#2b3a2c; font-size:16px; font-weight:800; cursor:pointer;
+}
+.grimi-chip-emoji { font-size:22px; line-height:1; }
+/* 고른 표시를 색만으로 하지 않는다 — 체크 글자가 함께 뜬다(aria-pressed도 준다). */
+.grimi-chip.is-on { border-color:#2f6b3f; background:#eef8ea; }
+.grimi-chip-check { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#2f6b3f; color:#fff; font-size:13px; }
+.grimi-chip:focus-visible { outline:3px solid #2f6b3f; outline-offset:2px; }
+
+.grimi-own { display:flex; align-items:center; gap:10px; padding:6px 10px 6px 6px; border:2px solid #efe6c8; border-radius:16px; background:#fffdf5; }
+.grimi-own-name { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:12px; background:#fff; font-size:14px; font-weight:800; color:#5b5230; white-space:nowrap; }
+.grimi-own input { flex:1 1 auto; min-width:0; min-height:44px; border:0; background:none; font-size:16px; font-weight:700; color:#2b3a2c; }
+.grimi-own input:focus { outline:none; }
+.grimi-own:focus-within { border-color:#2f6b3f; }
+
+.grimi-answer-actions { display:flex; gap:10px; }
+.studio .grimi-send { flex:1 1 auto; min-height:52px; }
+.studio .grimi-go-draw { flex:0 0 auto; min-height:52px; }
+.grimi-reply-error { margin:0; color:#9f2f2f; font-size:14px; font-weight:800; }
+.grimi-replied { margin:14px 0 0; padding:12px 14px; border-radius:14px; background:#eef8ea; color:#1d6725; font-size:15px; font-weight:800; line-height:1.5; }
+
+/* 넓은 가로 화면: 도화지 왼쪽 위에 떠 있는 카드(사용자가 고른 3번 시안).
+   좁은 화면은 위의 바텀시트 규칙을 그대로 둔다 — 같은 내용을 좁은 폭에 억지로 밀어 넣지 않는다. */
+@media (min-width:900px) and (min-height:600px) {
+  .studio-body { position:relative; }
+  /* 카드가 떠 있으므로 도화지가 폭을 다 쓴다. 종전에는 왼쪽 칼럼이 도화지를 밀고 있었다. */
+  .studio-body.grimi-open:not(:has(.step-panel)) { grid-template-columns:minmax(0,1fr); }
+  .studio-body.grimi-open:not(:has(.step-panel))>.canvas-zone { grid-column:1; }
+  .studio-body>.grimi-panel {
+    position:absolute; z-index:14; left:clamp(12px,1.8vw,26px); top:clamp(8px,1.4vh,18px);
+    width:min(560px,46vw);
+    padding:16px 18px 14px; border:0; border-radius:26px; background:#fffdf1;
+    box-shadow:0 16px 44px rgba(56,40,12,.22); overflow:visible;
+    /* 세로 flex라야 가운데만 스크롤하고 「그냥 내 마음대로 그릴래」가 카드 밖으로 밀려나지 않는다. */
+    display:flex; flex-direction:column;
+  }
+  /* 크레용 테두리는 9분할로 늘린다. 가변 문구를 그림에 굽지 않는다(인계 지시). */
+  .studio-body>.grimi-panel:after {
+    content:""; position:absolute; inset:-12px; pointer-events:none;
+    border:18px solid transparent; border-image:url("/mongri-card/crayon-frame.webp") 90 / 18px / 0 stretch;
+  }
+  /* `.grimi-scroll`의 기본값은 `display:contents`라 상자가 없다 — 그대로 두면 max-height도 overflow도
+     아무 일을 하지 않고, 카드 상한(`--dock-space`를 피한 calc(100% - 28px - var(--dock-space)))을
+     넘긴 내용이 그냥 흘러넘쳐 「그냥 내 마음대로 그릴래」가 카드 밖으로 밀렸다(2026-09-26 실측).
+     여기서만 진짜 상자로 만들어 가운데만 스크롤하게 한다. */
+  .studio-body>.grimi-panel>.grimi-scroll { display:block; flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+  .studio-body>.grimi-panel>.free-exit { flex:0 0 auto; margin-top:8px; }
+  /* 몽그리는 카드 밖으로 살짝 걸친다(시안). 장식이라 입력을 받지 않는다. */
+  .studio-body>.grimi-panel .grimi-head { position:relative; }
+  .studio-body>.grimi-panel .grimi-face { width:84px; height:84px; margin:-34px 0 0 -30px; pointer-events:none; }
+  /* 이름 뒤 노란 크레용 칠. 글자는 DOM이다. */
+  .studio-body>.grimi-panel .grimi-head>div>b {
+    padding:2px 14px 4px; background:url("/mongri-card/name-swash.webp") center/100% 100% no-repeat; color:#5b4a08;
+  }
+}

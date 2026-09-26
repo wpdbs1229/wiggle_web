@@ -710,11 +710,19 @@ async function main() {
           const question = panel.querySelector('.grimi-coaching h2');
           const nextAction = panel.querySelector('.next-action');
           const again = panel.querySelector('.grimi-again');
-          const chips = [...panel.querySelectorAll('.grimi-chips button')];
+          const chips = [...panel.querySelectorAll('.grimi-chip')];
           const exit = panel.querySelector('.free-exit');
           const close = panel.querySelector('.grimi-head [aria-label="몽그리 닫기"]');
           const reach = (element) => element ? window.__wiggle.reachable(element) : null;
-          const startState = { question: reach(question), nextAction: reach(nextAction), close: reach(close), exit: reach(exit), chipCount: chips.length };
+          // 칩을 실제로 눌러 반응을 본다 — 있는지만 세면 "눌러도 아무 일이 없던" 문제를 못 잡는다.
+          const sendButton = panel.querySelector('.grimi-send');
+          const sendDisabledAtFirst = sendButton ? sendButton.disabled : null;
+          let pickShowsMark = null;
+          if (chips[0]) {
+            chips[0].click(); await wait(220);
+            pickShowsMark = chips[0].getAttribute('aria-pressed') === 'true' && Boolean(chips[0].querySelector('.grimi-chip-check'));
+          }
+          const startState = { question: reach(question), nextAction: reach(nextAction), close: reach(close), exit: reach(exit), chipCount: chips.length, sendDisabledAtFirst, pickShowsMark };
           // 아이가 맨 아래 행동(다른 것도 물어보기)까지 이동하는 경로: 시트 안쪽 스크롤 한 번
           again?.scrollIntoView({ block: 'center' });
           await wait(250);
@@ -726,7 +734,11 @@ async function main() {
         if (!coaching.error) {
           check(coaching.startState.question?.onScreen, `${viewport.name} 몽그리 첫 질문이 바로 보임`, coaching.startState.question);
           check(coaching.startState.nextAction?.onScreen, `${viewport.name} '이제 그려 볼 일'이 고르지 않아도 바로 보임`, coaching.startState.nextAction);
-          check(coaching.startState.chipCount === 0, `${viewport.name} 답을 되돌려 보내는 칩이 없음(읽기 전용)`, coaching.startState.chipCount);
+          /* 2026-09-26: 칩이 다시 생겼다(제품 결정 25항 개정). 되살리되 읽기 전용으로 가게 만든 이유는
+             막았다 — 고른 즉시 표가 나야 하고(그때는 눌러도 아무 일이 없었다), 빈 답은 보낼 수 없어야 한다. */
+          check(coaching.startState.chipCount > 0, `${viewport.name} 답 고르기 칩이 보임`, coaching.startState.chipCount);
+          check(coaching.startState.sendDisabledAtFirst === true, `${viewport.name} 고르기 전에는 보내기가 잠겨 있음`, coaching.startState.sendDisabledAtFirst);
+          check(coaching.startState.pickShowsMark === true, `${viewport.name} 칩을 고르면 바로 표가 남`, coaching.startState.pickShowsMark);
           check(coaching.startState.close?.hitsSelf, `${viewport.name} 코칭 중에도 닫기가 고정되어 보임`, coaching.startState.close);
           check(coaching.startState.exit?.hitsSelf, `${viewport.name} 코칭 중에도 탈출 버튼이 고정되어 보임`, coaching.startState.exit);
           check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 '다른 것도 물어보기'에 닿음`, coaching.afterScroll.confirm);

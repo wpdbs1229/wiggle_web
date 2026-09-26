@@ -599,6 +599,15 @@ export function DrawingStudio() {
   // 도구로 이동하는 플로팅 버튼이 정작 도구 패널·몽그리 시트 위까지 떠서
   // 320px 세로에서 전체 지우기·탈출 버튼을 가렸다. 도구가 이미 보이면 숨긴다.
   const [coaching, setCoaching] = useState<(StudentCoaching & { eventId: string }) | null>(null);
+  /* 카드에서 바로 답하기(2026-09-26 인계 mongri-floating-handoff). 선택지 하나 또는 아이가 쓴 문장
+   * **둘 중 하나만** 답으로 나간다. 둘 다 비면 보내지 않는다. */
+  const [pickedAnswer, setPickedAnswer] = useState("");
+  const [ownAnswer, setOwnAnswer] = useState("");
+  const [replyState, setReplyState] = useState<"idle" | "sending" | "sent">("idle");
+  /* 상태만으로는 연속 탭을 못 막는다 — setState가 비동기라 같은 틱에 두 번 누르면 둘 다 통과한다
+   * (2026-09-26 실측: 요청이 2번 나갔다). 완성 저장(completingRef)과 같은 방식으로 ref가 막는다. */
+  const replyingRef = useRef(false);
+  const [replyError, setReplyError] = useState("");
   const [childChoice, setChildChoice] = useState("");
   const [runSerial] = useState(createSerialTaskQueue);
   const [saveBranchId] = useState(() => `branch_${crypto.randomUUID().replaceAll("-", "")}`);
@@ -2512,6 +2521,7 @@ export function DrawingStudio() {
     // 다시 부르면 앞 질문은 아이가 답할 일이 없다. 열어 둔 채 쌓지 않고 닫는다.
     closeCoachingEvent(coaching?.eventId);
     setCoaching(null);
+    setPickedAnswer(""); setOwnAnswer(""); setReplyState("idle"); setReplyError(""); replyingRef.current = false;
     setGuidePhase("independent");
     window.clearTimeout(saveTimer.current);
     // 선행 저장은 반드시 try 안에서 기다린다. 밖에서 던지면 grimiLoading이 영구히 잠긴다.
@@ -2647,10 +2657,35 @@ export function DrawingStudio() {
     advanceOrCompleteLessonStep(false);
   }
 
+  /* 카드에서 바로 답을 보낸다. 서버의 `reply`는 같은 줄을 덮어쓰므로 아이가 답을 바꿔도 409가 나지 않는다
+   * — 2026-09-23에 왕복을 걷어낸 세 이유 중 하나였다. 그리기 전에 답하는 길이라 문서·이미지를 싣지 않는다. */
+  const replyText = (pickedAnswer || ownAnswer).trim();
+  async function sendReply() {
+    if (!artwork || !coaching || !replyText || replyingRef.current) return;
+    replyingRef.current = true;
+    setReplyState("sending"); setReplyError("");
+    try {
+      const response = await studentFetch("/api/ai/coaching", {
+        method: "POST",
+        body: JSON.stringify({ action: "reply", artworkId: artwork.id, eventId: coaching.eventId, answer: replyText }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "답을 보내지 못했어요.");
+      setReplyState("sent");
+    } catch (cause) {
+      // 보내지 못하면 다시 누를 수 있게 되돌린다. 아이가 쓴 글자는 지우지 않는다.
+      setReplyState("idle");
+      setReplyError(cause instanceof Error ? cause.message : "답을 보내지 못했어요. 다시 눌러 볼까?");
+    } finally {
+      replyingRef.current = false;
+    }
+  }
+
   function closeGrimiState() {
     setGrimiOpen(false);
     setGrimiCollapsed(false);
     setCoaching(null);
+    setPickedAnswer(""); setOwnAnswer(""); setReplyState("idle"); setReplyError(""); replyingRef.current = false;
     setGuidePhase("independent");
     setGrimiError("");
   }
@@ -2793,9 +2828,11 @@ export function DrawingStudio() {
                 {/* 아이가 부르지 않았는데 열린 경우, 누가 먼저 말을 걸었는지 알려 준다. */}
                 {autoGrimi && <small className="grimi-auto-tag">내가 먼저 말 걸었어</small>}
               </div>
-              {coaching && !grimiLoading && (
-                <button className="grimi-collapse" onClick={() => setGrimiCollapsed((value) => !value)}>
-                  {grimiCollapsed ? "✨ 몽그리 다시 보기" : "✏️ 그리러 가기"}
+              {/* 펼친 상태의 「그리러 가기」는 답 줄에 있다(시안). 여기 남는 것은 접었을 때 되펼치는 길뿐이다 —
+                  같은 자리에 두 개를 두면 아이가 같은 말을 두 번 보게 된다. */}
+              {coaching && !grimiLoading && grimiCollapsed && (
+                <button className="grimi-collapse" onClick={() => setGrimiCollapsed(false)}>
+                  ✨ 몽그리 다시 보기
                 </button>
               )}
               <button onClick={dismissGrimi} aria-label="몽그리 닫기">
@@ -2830,12 +2867,58 @@ export function DrawingStudio() {
                     <div className="spoken-prompt">
                       <h2>{coaching.question}</h2>
                     </div>
+                    {/* 시안 차례는 질문 → 답하기지만, 그러면 320·844 같은 낮은 화면에서 「이제 그려 볼 일」이
+                        접힌 아래로 밀렸다(2026-09-26 browser-check 실측 onScreen:false). 답하지 않아도 무엇을
+                        할지 바로 알아야 한다는 보장이 시안 차례보다 앞선다. */}
+                    {/* 「이제 그려 볼 일」은 답하기 **전부터** 보인다. 답을 골라야 나타나던 종전 흐름은
+                        아이가 무엇을 할지 늦게 알게 했다(2026-09-23에 왕복을 걷어낸 세 이유 중 하나). */}
                     <div className="next-action">
                       <small>이제 그려 볼 일</small>
                       <div className="spoken-prompt">
                         <b>{coaching.nextAction}</b>
                       </div>
                     </div>
+                    {replyState === "sent" ? (
+                      <p className="grimi-replied" role="status">
+                        <span aria-hidden="true">✓</span> 「{replyText}」라고 알려 줬어. 이제 그려 볼까?
+                      </p>
+                    ) : (
+                      <div className="grimi-answer">
+                        {coaching.choices.length > 0 && (
+                          <div className="grimi-chips" role="group" aria-label="답 고르기">
+                            {coaching.choices.map((choice) => {
+                              const on = pickedAnswer === choice.answer;
+                              return (
+                                /* 고른 표시는 색만으로 하지 않는다 — 체크 글자와 aria-pressed를 함께 둔다.
+                                   칩을 눌러도 아무 일이 없던 것이 종전 왕복을 걷어낸 세 이유 중 하나였다. */
+                                <button type="button" key={choice.label} className={`grimi-chip${on ? " is-on" : ""}`} aria-pressed={on}
+                                  onClick={() => { setPickedAnswer(on ? "" : choice.answer); setOwnAnswer(""); setReplyError(""); }}>
+                                  <span className="grimi-chip-emoji" aria-hidden="true">{choice.emoji}</span>
+                                  <span className="grimi-chip-label">{choice.label}</span>
+                                  {on && <span className="grimi-chip-check" aria-hidden="true">✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <label className="grimi-own">
+                          <span className="grimi-own-name"><span aria-hidden="true">✏️</span> 내 말로 쓰기</span>
+                          <input value={ownAnswer} maxLength={80} placeholder="내 그림은…" enterKeyHint="send"
+                            onChange={(event) => { setOwnAnswer(event.target.value); setPickedAnswer(""); setReplyError(""); }}
+                            onKeyDown={(event) => { if (event.key === "Enter" && replyText) { event.preventDefault(); void sendReply(); } }} />
+                        </label>
+                        <div className="grimi-answer-actions">
+                          <button type="button" className="button primary grimi-send" disabled={!replyText || replyState === "sending"} onClick={() => void sendReply()}>
+                            <span aria-hidden="true">✓</span>{replyState === "sending" ? "보내는 중…" : "이렇게 답할래"}
+                          </button>
+                          {/* 답하지 않고 나가는 길. 접기 단추와 같은 동작이라 같은 class를 쓴다. */}
+                          <button type="button" className="grimi-collapse grimi-go-draw" onClick={() => setGrimiCollapsed(true)}>
+                            <span aria-hidden="true">✏️</span> 그리러 가기
+                          </button>
+                        </div>
+                        {replyError && <p className="grimi-reply-error" role="alert">{replyError}</p>}
+                      </div>
+                    )}
                     <button type="button" className="button secondary full grimi-again" disabled={grimiLoading} onClick={() => void askGrimi()}>
                       <span aria-hidden="true">✨</span>
                       다른 것도 물어보기
