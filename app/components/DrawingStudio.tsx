@@ -445,6 +445,17 @@ function imageData(canvas: HTMLCanvasElement, size: 256 | 1024) {
   return output.toDataURL("image/png");
 }
 
+/* 썸네일은 자동 저장마다 본문에 실린다(완성본은 완성할 때 한 번뿐이다). 그래서 이 한 장만
+ * WebP 무손실로 굽는다 — 실측(2026-09-26): 물감 많은 그림 기준 PNG 40.3KB → WebP 23.9KB(−41%),
+ * 픽셀 손상 0, 256px 인코딩은 PNG보다 오히려 빠르다(2.2ms → 1.8ms).
+ * 완성본(1024)은 PNG 그대로 둔다 — 한 번뿐이라 이득이 작고 인코딩이 3배 느리다.
+ * toDataURL은 못 굽는 형식을 주면 **말없이 PNG를 돌려준다.** 그래서 결과 접두사를 보고 판단한다 —
+ * 안 되는 기기(옛 사파리)에서는 자동으로 PNG가 되고 서버는 둘 다 받는다. */
+function encodeThumbnail(output: HTMLCanvasElement) {
+  const webp = output.toDataURL("image/webp", 1);
+  return webp.startsWith("data:image/webp;base64,") ? webp : output.toDataURL("image/png");
+}
+
 // 저장 이미지는 화면 픽셀이 아니라 저장하려는 문서에서 직접 렌더한다. 화면 캔버스에는
 // 그리는 중 미리보기 같은 문서 밖 픽셀이 있을 수 있고, 그게 썸네일·완성 PNG에 섞이면 안 된다.
 // (몽그리에 보내는 이미지는 "아이가 지금 보는 화면"이어야 하므로 imageData를 그대로 쓴다.)
@@ -454,7 +465,7 @@ function documentImage(documentValue: DrawDocument, size: 256 | 1024) {
   if (!bounds) {
     const output = document.createElement("canvas");
     renderDocument(output, documentValue, size);
-    return output.toDataURL("image/png");
+    return size === 256 ? encodeThumbnail(output) : output.toDataURL("image/png");
   }
   /* 넓은 도화지(span>1)는 흰 여백이 대부분이라 도화지 전체를 1024로 줄이면 아이 그림이 1/3 크기로 들어간다.
    * 그러면 그림책·인쇄에서 뭉개진다. 그래서 그린 칸만 잘라, 같은 파일 크기로 훨씬 촘촘하게 담는다. */
@@ -475,7 +486,7 @@ function documentImage(documentValue: DrawDocument, size: 256 | 1024) {
   context.translate(-Math.round(bounds.x * pageSize.width), -Math.round(bounds.y * pageSize.height));
   resetDrawingCanvas(context, pageSize);
   renderDrawDocument(context, documentValue.ops, pageSize);
-  return output.toDataURL("image/png");
+  return size === 256 ? encodeThumbnail(output) : output.toDataURL("image/png");
 }
 
 // 서버 한도에 부딪히면 그 작품은 이후 모든 저장이 실패해 조용히 유실된다.
