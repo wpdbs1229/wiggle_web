@@ -220,8 +220,10 @@ test("도화지 비율은 문서가 정하고, 화면·래스터·저장 이미�
   // 래스터도 문서 비율을 따른다. 정사각으로 고정하면 저장 PNG와 화면이 어긋난다.
   assert.match(studio, /function documentPixels\(document: Pick<DrawDocument, "height">, width: number\)/);
   assert.match(studio, /height: Math\.round\(width \* documentHeight\(document\) \/ DOCUMENT_SIZE\)/);
-  // 저장 이미지는 화면 캔버스 비율을 그대로 쓴다.
-  assert.match(studio, /const height = Math\.max\(1, Math\.round\(size \* canvas\.height \/ Math\.max\(1, canvas\.width\)\)\)/);
+  /* 종전에는 화면 캔버스에서 굽는 imageData가 따로 있어 그 비율 계산을 여기서 지켰다.
+     2026-09-26에 몽그리 전송 이미지까지 documentImage로 옮기면서 쓰는 곳이 없어져 지웠다(P-014).
+     남은 저장 이미지 경로의 비율은 바로 위 documentPixels 검사가 지킨다. */
+  assert.doesNotMatch(studio, /function imageData\(/, "화면 기반 이미지 굽기가 되살아나면 안 된다");
   // 점선 안내 좌표는 정사각 기준이라, 가운데 정사각 영역에 넣어 동그라미가 타원이 되지 않게 한다.
   assert.match(studio, /function guideSquare\(canvas: HTMLCanvasElement\)/);
   assert.match(studio, /context\.scale\(square\.side \/ 1024, square\.side \/ 1024\)/);

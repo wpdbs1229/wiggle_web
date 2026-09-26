@@ -431,19 +431,6 @@ function renderGuideFrame(canvas: HTMLCanvasElement, traces: GuideTrace[], phase
   context.restore();
 }
 
-function imageData(canvas: HTMLCanvasElement, size: 256 | 1024) {
-  const output = document.createElement("canvas");
-  // 화면 캔버스의 비율을 그대로 따른다 — 정사각으로 고정하면 가로 도화지가 찌그러진다.
-  const height = Math.max(1, Math.round(size * canvas.height / Math.max(1, canvas.width)));
-  output.width = size;
-  output.height = height;
-  const context = output.getContext("2d");
-  if (!context) return "";
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, size, height);
-  context.drawImage(canvas, 0, 0, size, height);
-  return output.toDataURL("image/png");
-}
 
 /* 썸네일은 자동 저장마다 본문에 실린다(완성본은 완성할 때 한 번뿐이다). 그래서 이 한 장만
  * WebP 무손실로 굽는다 — 실측(2026-09-26): 물감 많은 그림 기준 PNG 40.3KB → WebP 23.9KB(−41%),
@@ -456,9 +443,13 @@ function encodeThumbnail(output: HTMLCanvasElement) {
   return webp.startsWith("data:image/webp;base64,") ? webp : output.toDataURL("image/png");
 }
 
-// 저장 이미지는 화면 픽셀이 아니라 저장하려는 문서에서 직접 렌더한다. 화면 캔버스에는
-// 그리는 중 미리보기 같은 문서 밖 픽셀이 있을 수 있고, 그게 썸네일·완성 PNG에 섞이면 안 된다.
-// (몽그리에 보내는 이미지는 "아이가 지금 보는 화면"이어야 하므로 imageData를 그대로 쓴다.)
+/* 저장 이미지는 화면 픽셀이 아니라 저장하려는 문서에서 직접 렌더한다. 화면 캔버스에는
+ * 그리는 중 미리보기 같은 문서 밖 픽셀이 있을 수 있고, 그게 썸네일·완성 PNG에 섞이면 안 된다.
+ *
+ * 2026-09-26: 몽그리에 보내는 이미지도 이것을 쓴다(미결정 P-014). 종전에는 "아이가 지금 보는
+ * 화면"이라는 이유로 imageData를 썼는데, 실제로는 화면이 아니라 문서 래스터 전체였고 — 넓은
+ * 도화지(span 3)는 대부분이 흰 여백이라 340×290짜리 집이 모델 눈에 57×48px(넓이의 5.6%)로
+ * 들어갔다. 이 함수는 span>1이면 그린 칸만 잘라 같은 크기에 9배 크게 담는다. */
 function documentImage(documentValue: DrawDocument, size: 256 | 1024) {
   const span = documentSpan(documentValue);
   const bounds = span > 1 ? contentBounds(documentValue) : null;
@@ -2538,7 +2529,7 @@ export function DrawingStudio() {
           artworkId: artwork.id,
           expectedRevision: revisionRef.current,
           document: documentStateRef.current,
-          imageDataUrl: imageData(canvasRef.current, 1024),
+          imageDataUrl: documentImage(documentStateRef.current, 1024),
           childChoice,
           openedBy: auto ? "mongri" : "child",
         }),
@@ -2630,7 +2621,7 @@ export function DrawingStudio() {
     try {
       const response = await studentFetch("/api/ai/coaching", {
         method: "POST",
-        body: JSON.stringify({ action: "interpret", artworkId: artwork.id, imageDataUrl: imageData(canvasRef.current, 1024) }),
+        body: JSON.stringify({ action: "interpret", artworkId: artwork.id, imageDataUrl: documentImage(documentStateRef.current, 1024) }),
       });
       const data = (await response.json()) as { interpretation?: StoryInterpretation };
       if (response.ok && data.interpretation) setInterpretation(data.interpretation);
