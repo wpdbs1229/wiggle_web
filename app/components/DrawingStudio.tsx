@@ -3056,7 +3056,13 @@ export function DrawingStudio() {
         {/* 도구 막대(2026-09-14 사용자 결정 — 시안 docs/design-assets/studio-tool-dock/B-crayon-box.webp).
             화면 아래에 떠 있는 크림색 막대에 세워진 도구, 고른 도구는 올라오고 진초록 바탕. 붓 끝·띠는 지금 색으로 칠한다.
             고른 도구를 한 번 더 누르면 굵기 자가 위에 뜬다. 채우기·도형·글씨·입력 방법은 ⋯ 안에 있다. */}
-        <aside className={`tool-dock${dockOpen ? "" : " is-collapsed"}`} aria-label="그리기 도구 모음" style={{ "--dock-color": selectedColor } as React.CSSProperties}>
+        {/* 도화지는 CSS(선택·끌기 금지)와 onDragStart 방어를 **둘 다** 갖고 있다. 막대는 2026-09-23에
+            CSS만 받았고, 그 커밋도 "실기기 재확인이 필요하다"고 적어 두었다 — 아이패드에서 도구가 계속
+            끌린다는 제보(2026-09-26)가 이어졌다. 같은 JS 방어를 막대에도 건다.
+            끌기 이벤트는 위로 올라오므로 막대 하나에 걸면 안의 도구 그림·색 단추가 모두 덮인다. */}
+        <aside className={`tool-dock${dockOpen ? "" : " is-collapsed"}`} aria-label="그리기 도구 모음" style={{ "--dock-color": selectedColor } as React.CSSProperties}
+          onDragStart={(event) => event.preventDefault()}
+          onContextMenu={(event) => event.preventDefault()}>
           {/* 아코디언(2026-09-15 사용자: "누르면 위로 올라가고 내리면 아래로 내려가는 느낌"): 막대가 화면 아래로 미끄러져 내려가고 손잡이 탭만 남는다. */}
           <button
             type="button"

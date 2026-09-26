@@ -189,6 +189,15 @@ test("도구 막대는 아이패드에서 선택·끌기 대상이 되지 않는
   assert.match(guard[0], /\.tool-dock,\.tool-dock \*/);
   assert.match(guard[0], /-webkit-touch-callout:none/);
   assert.match(guard[0], /user-select:none/);
+  /* 2026-09-26: CSS만으로는 부족했다. 28d0d8f 자신도 "실기기 재확인이 필요하다"고 적었고
+     아이패드에서 도구가 계속 끌린다는 제보가 이어졌다. 도화지는 처음부터 CSS와 onDragStart를
+     **둘 다** 갖고 있었는데 막대에는 JS 방어가 없었다 — 같은 방어를 막대에도 건다.
+     끌기 이벤트는 위로 올라오므로 막대 하나면 안의 도구 그림·색 단추가 모두 덮인다. */
+  // `=>`의 > 때문에 게으른 매칭은 여는 태그 중간에서 잘린다 — 고정 길이 창으로 본다.
+  const dock = studio.match(/<aside className=\{`tool-dock[\s\S]{0,400}/);
+  assert.ok(dock, "도구 막대 엘리먼트를 찾지 못했다");
+  assert.match(dock[0], /onDragStart=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(dock[0], /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
 });
 
 test("eraser footprint matches the square area removed from the document", () => {
