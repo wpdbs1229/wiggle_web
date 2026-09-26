@@ -44,6 +44,8 @@ function ArtworkCard({ artwork }: { artwork: DeskArtwork }) {
         <b>{artwork.title}</b>
         <time dateTime={artwork.completedAt ?? artwork.updatedAt}>{deskDate(artwork.completedAt ?? artwork.updatedAt)}</time>
       </span>
+      {/* 시안대로 제목·날짜는 왼쪽, 행동은 같은 줄 오른쪽이다. 세로로 쌓으면 카드가 길어져
+          한 줄에 네 장이 들어가지 않는다. */}
       <span className="desk-art-go">{drawing ? "이어 그리기" : "그림 보기"} <span aria-hidden="true">›</span></span>
     </span>
   </a>;
@@ -103,8 +105,13 @@ export function StudentArtDesk({ nickname, artworks, artworkTotal }: { nickname:
       {/* 모서리 장식. 본문 뒤에 있고 초점·클릭을 받지 않는다. 좁은 화면에서는 CSS가 숨긴다. */}
       <div className="desk-decor" aria-hidden="true">
         <img className="desk-decor-plant" src="/student-desk/plant-left.webp" alt="" width={1295} height={1214} />
-        <img className="desk-decor-stationery" src="/student-desk/stationery-top-right.webp" alt="" width={1536} height={1024} />
+        {/* 메모지 글자는 그림에 굽지 않고 HTML로 올린다(인계 지시 — 그림 속 메모지는 비어 있다). */}
+        <span className="desk-decor-stationery">
+          <img src="/student-desk/stationery-top-right.webp" alt="" width={1536} height={1024} />
+          <span className="desk-memo">오늘도<br />멋진 그림<br />기다릴게!</span>
+        </span>
         <img className="desk-decor-notebook" src="/student-desk/notebook-bottom-right.webp" alt="" width={1222} height={1287} />
+        <img className="desk-decor-crayons" src="/student-desk/crayons-edge.webp" alt="" width={1536} height={1024} />
       </div>
 
       <header className="app-header desk-header">
@@ -117,7 +124,8 @@ export function StudentArtDesk({ nickname, artworks, artworkTotal }: { nickname:
       <div className="desk-body">
         <div className="desk-title">
           <h1>{nickname}의 그림 자리</h1>
-          <p>오늘은 무엇을 해 볼까?</p>
+          {/* 시안은 짧은 노란 밑줄과 안내가 한 줄에 나란히 있다. */}
+          <p><span className="desk-title-rule" aria-hidden="true" />오늘은 무엇을 해 볼까?</p>
         </div>
 
         <section className="desk-section" aria-labelledby="desk-art-title">

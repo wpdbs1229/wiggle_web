@@ -266,6 +266,15 @@
       "approvedFor": [
         "참여 코드 뒤 「그림 자리」 화면(/student)의 모서리 장식·아이콘·빈 책 틀. 글자·아이 그림은 들어 있지 않다."
       ]
+    },
+    {
+      "path": "/student-desk/crayons-edge.webp",
+      "source": "코덱스 인계 student-art-desk-handoff-20260923/assets/ (ImageGen 생성, 프롬프트·출처는 docs/design-assets/student-art-desk-handoff-20260923/PROVENANCE.md). 재인코딩 없이 그대로 복사했다.",
+      "sourceRole": "codex handoff",
+      "sha256": "5A0AA3871E23928C07241CCA156DD4B01E19EE5D477C85E6F2C51B59D2AC6B13",
+      "approvedFor": [
+        "참여 코드 뒤 「그림 자리」 화면(/student) 왼쪽 아래 크레용 장식. 글자·아이 그림은 들어 있지 않다."
+      ]
     }
   ],
   "notApproved": "All other wiggle_draw assets remain outside wiggle_web until provenance and service-use permission are reviewed."
