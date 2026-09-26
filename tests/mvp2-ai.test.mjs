@@ -132,7 +132,13 @@ test("prompts and routes preserve child agency, teacher approval and structured 
   assert.match(studentRoute, /studentFromRequest/); assert.match(studentRoute, /WHERE id = \? AND student_id = \?/); assert.match(studentRoute, /recordCoachingBefore/); assert.match(coachingStore, /coaching_before/); assert.match(coachingStore, /coaching_after/); assert.match(studentRoute, /recentEvents/); assert.match(studentRoute, /rateLimit/); assert.doesNotMatch(studentRoute, /drawing_guide|finishGuide/);
   assert.match(teacherRoute, /requireTeacher/); assert.match(teacherRoute, /c\.teacher_id = \?/); assert.match(teacherMessages, /status = 'draft'/); assert.match(teacherMessages, /status = 'approved'/); assert.match(teacherMessages, /INSERT INTO teacher_messages/); assert.match(teacherRoute, /approveTeacherDraftMessage/);
   assert.match(schema, /coachingEventDetails/); assert.match(schema, /teacherCoachingDrafts/); assert.match(runtime, /coaching_event_details/); assert.match(runtime, /teacher_coaching_drafts/);
-  assert.match(studio, /몽그리 부르기/); assert.match(studio, /그냥 내 마음대로 그릴래/); assert.doesNotMatch(studio, /TimelapsePlayer/); assert.match(teacherUi, /수정한 뒤 승인해서 보내기/);
+  assert.match(studio, /몽그리 부르기/);
+  /* 「그냥 내 마음대로 그릴래」는 2026-09-26에 없앴다 — 머리의 ×와 같은 dismissGrimi를 불러 중복이었다.
+     지켜야 할 것은 "답하지 않고 나갈 길이 있다"이고, 그 길은 ×와 「그리러 가기」로 남는다. */
+  assert.match(studio, /aria-label="몽그리 닫기"/);
+  assert.match(studio, /className="grimi-collapse grimi-go-draw"/);
+  // 문구가 주석에 남아 있을 수 있으므로 **단추가 없는지**를 본다(설명까지 막으면 이유를 못 적는다).
+  assert.doesNotMatch(studio, /className="text-button free-exit"/); assert.doesNotMatch(studio, /TimelapsePlayer/); assert.match(teacherUi, /수정한 뒤 승인해서 보내기/);
   assert.match(renderer, /op\.type === "fill"/); assert.match(renderer, /op\.type === "shape"/); assert.match(renderer, /op\.type === "sticker"/); assert.match(timelapse, /setInterval/); assert.match(timelapse, /clearInterval/); assert.doesNotMatch(timelapse, /document\.ops\.slice\(0, frame\)/);
 });
 

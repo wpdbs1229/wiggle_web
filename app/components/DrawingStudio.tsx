@@ -2927,11 +2927,9 @@ export function DrawingStudio() {
                 )}
               </div>
             )}
-            {!grimiCollapsed && (
-              <button className="text-button free-exit" onClick={dismissGrimi}>
-                그냥 내 마음대로 그릴래
-              </button>
-            )}
+            {/* 「그냥 내 마음대로 그릴래」는 2026-09-26에 없앴다(사용자 결정). 머리의 ×와 **완전히 같은**
+                dismissGrimi를 불렀다 — 이름만 다른 같은 단추였고, 읽기 전용 시절(답할 것이 없던 때)의
+                유물이다. 지금은 나가는 길이 뜻으로 갈린다: × = 몽그리 보내기, 「그리러 가기」 = 접고 그리기. */}
           </aside>
         ) : (
           lesson && (

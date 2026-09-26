@@ -2350,9 +2350,22 @@ body {
   .studio-body>.grimi-panel>.free-exit { flex:0 0 auto; margin-top:8px; }
   /* 몽그리는 카드 밖으로 살짝 걸친다(시안). 장식이라 입력을 받지 않는다. */
   .studio-body>.grimi-panel .grimi-head { position:relative; }
-  .studio-body>.grimi-panel .grimi-face { width:84px; height:84px; margin:-34px 0 0 -30px; pointer-events:none; }
+  /* 카드 밖으로 걸치되 머리 줄까지 올라가면 안 된다 — `.studio`가 overflow:hidden이라 거기서 잘린다
+     (2026-09-26 실측: 위로 5px 넘쳐 잘림). 걸치는 느낌은 남기고 넘치지 않을 만큼만 올린다. */
+  .studio-body>.grimi-panel .grimi-face { width:84px; height:84px; margin:-16px 0 0 -26px; pointer-events:none; }
   /* 이름 뒤 노란 크레용 칠. 글자는 DOM이다. */
   .studio-body>.grimi-panel .grimi-head>div>b {
     padding:2px 14px 4px; background:url("/mongri-card/name-swash.webp") center/100% 100% no-repeat; color:#5b4a08;
+  }
+}
+
+/* 좁고 **낮은** 시트에서는 답 줄을 바닥에 붙인다. 2026-09-26에 「그냥 내 마음대로 그릴래」를 없애면서
+   스크롤 밖에 고정돼 있던 나가는 길이 사라졌고, 320×568·844×390에서 「그리러 가기」가 접힌 아래로
+   밀렸다(browser-check onScreen:false 실측). 높이가 넉넉한 시트는 `.next-action`이 이미 붙으므로 건드리지 않는다. */
+@media (max-width:720px) and (max-height:599px),
+       (max-width:900px) and (max-height:500px) and (orientation:landscape) {
+  .studio-body>.grimi-panel .grimi-answer-actions {
+    position:sticky; bottom:0; z-index:1; padding-block:8px;
+    background:#fffdf1; box-shadow:0 -6px 14px rgba(255,253,241,.92);
   }
 }

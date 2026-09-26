@@ -668,11 +668,11 @@ async function main() {
           const panel = document.querySelector('.grimi-panel');
           if (!panel) return { error: 'no-panel' };
           const scroll = panel.querySelector('.grimi-scroll');
-          // AI 호출은 키 없이 실패할 수 있다. 패널 자체의 공간과 닫기·탈출 경로를 검증한다.
+          // AI 호출은 키 없이 실패할 수 있다. 패널 자체의 공간과 닫기·나가기 경로를 검증한다.
           for (let attempt = 0; attempt < 50; attempt += 1) { if (!document.querySelector('.grimi-thinking')) break; await wait(200); }
           const box = window.__wiggle.box(panel);
-          const close = panel.querySelector('.grimi-head > button');
-          const exit = panel.querySelector('.free-exit');
+          const close = panel.querySelector('.grimi-head [aria-label="몽그리 닫기"]');
+          const exit = panel.querySelector('.grimi-go-draw');
           const style = getComputedStyle(panel);
           return {
             box, position: style.position, maxHeightPx: box.h, viewportHeight: innerHeight,
@@ -692,7 +692,10 @@ async function main() {
           check(grimi.box.bottom <= grimi.viewportHeight + 1, `${viewport.name} 몽그리 시트가 화면 안에 있음`, grimi.box);
           check(grimi.closeBox && Math.min(grimi.closeBox.w, grimi.closeBox.h) >= 44, `${viewport.name} 몽그리 닫기 44px 이상`, grimi.closeBox);
           check(grimi.closeReachable?.hitsSelf, `${viewport.name} 몽그리 닫기를 바로 누를 수 있음`, grimi.closeReachable);
-          check(grimi.exitReachable?.onScreen, `${viewport.name} 그냥 그릴래 탈출 경로가 화면 안에 있음`, grimi.exitReachable);
+          /* 2026-09-26: 스크롤 밖에 고정돼 있던 「그냥 내 마음대로 그릴래」를 없앴다(×와 같은 동작이라 중복).
+             그래서 **늘 화면에 있는 나갈 길은 머리에 고정된 ×**다. 「그리러 가기」는 답 줄에 있어
+             낮은 시트(844×390)에서는 스크롤해야 닿는다 — 아래 afterScroll 검사가 그것을 지킨다. */
+          check(grimi.closeReachable?.onScreen, `${viewport.name} 늘 보이는 나갈 길(몽그리 닫기)이 화면 안에 있음`, grimi.closeReachable);
         }
 
         // 5-b) 실제 코칭 응답 상태에서: 질문·선택지·다음 행동·확인 버튼이 모두 닿는가
@@ -711,7 +714,9 @@ async function main() {
           const nextAction = panel.querySelector('.next-action');
           const again = panel.querySelector('.grimi-again');
           const chips = [...panel.querySelectorAll('.grimi-chip')];
-          const exit = panel.querySelector('.free-exit');
+          /* 「그냥 내 마음대로 그릴래」(.free-exit)는 2026-09-26에 없앴다 — ×와 같은 dismissGrimi라 중복이었다.
+             지켜야 할 것은 "답을 강요받지 않고 나갈 길이 늘 닿는다"이고, 이제 그 길은 「그리러 가기」다. */
+          const exit = panel.querySelector('.grimi-go-draw');
           const close = panel.querySelector('.grimi-head [aria-label="몽그리 닫기"]');
           const reach = (element) => element ? window.__wiggle.reachable(element) : null;
           // 칩을 실제로 눌러 반응을 본다 — 있는지만 세면 "눌러도 아무 일이 없던" 문제를 못 잡는다.
@@ -740,9 +745,10 @@ async function main() {
           check(coaching.startState.sendDisabledAtFirst === true, `${viewport.name} 고르기 전에는 보내기가 잠겨 있음`, coaching.startState.sendDisabledAtFirst);
           check(coaching.startState.pickShowsMark === true, `${viewport.name} 칩을 고르면 바로 표가 남`, coaching.startState.pickShowsMark);
           check(coaching.startState.close?.hitsSelf, `${viewport.name} 코칭 중에도 닫기가 고정되어 보임`, coaching.startState.close);
-          check(coaching.startState.exit?.hitsSelf, `${viewport.name} 코칭 중에도 탈출 버튼이 고정되어 보임`, coaching.startState.exit);
+          // 「그리러 가기」는 존재하고 스크롤 뒤에 닿아야 한다(바로 아래 afterScroll 검사). 여기서는 있는지만 본다.
+          check(Boolean(coaching.startState.exit), `${viewport.name} 코칭 중에 「그리러 가기」가 있음`, coaching.startState.exit);
           check(coaching.afterScroll.confirm?.hitsSelf, `${viewport.name} 한 번 스크롤로 '다른 것도 물어보기'에 닿음`, coaching.afterScroll.confirm);
-          check(coaching.afterScroll.close?.hitsSelf && coaching.afterScroll.exit?.hitsSelf, `${viewport.name} 스크롤 뒤에도 닫기·탈출이 그대로 보임`, coaching.afterScroll);
+          check(coaching.afterScroll.close?.hitsSelf && coaching.afterScroll.exit?.hitsSelf, `${viewport.name} 스크롤 뒤에도 닫기·「그리러 가기」가 그대로 보임`, coaching.afterScroll);
           check(coaching.nestedScrollers.length === 0, `${viewport.name} 시트 안에 숨은 중첩 스크롤이 없음`, coaching.nestedScrollers);
         }
 
