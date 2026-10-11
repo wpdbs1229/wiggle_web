@@ -44,7 +44,7 @@ export function contentBounds(document: DrawDocument): { x: number; y: number; w
       if (point.y > bottom) bottom = point.y;
     }
     // 글자·스티커는 점 하나로 저장되므로 그 크기만큼 여유를 둔다.
-    const reach = op.type === "text" ? (op.fontSize ?? 64) * 1.2 : op.type === "sticker" ? 140 : (op.width ?? 0);
+    const reach = op.type === "text" ? (op.fontSize ?? 64) * 1.2 : op.type === "sticker" ? (op.fontSize ?? STICKER_SIZE) : (op.width ?? 0);
     if (reach > widest) widest = reach;
   }
   if (!found) return null;
@@ -74,6 +74,11 @@ export function clampDocumentHeight(rawHeight: number): number {
   return Math.max(DOCUMENT_MIN_HEIGHT, Math.min(DOCUMENT_MAX_HEIGHT, stepped));
 }
 export const STICKER_ALLOWLIST = ["star", "heart", "leaf", "cloud", "sparkle"] as const;
+/* 스티커 크기도 굵기·글자와 같은 도화지 단위다. 넓은 도화지(span)에서는 STICKER_SIZE를 span으로 나눈 값을
+ * `fontSize`에 담는다(렌더러가 스티커를 글자로 그린다). 값이 없으면 예전처럼 140이다. */
+export const STICKER_SIZE = 140;
+export const isStickerSize = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= STICKER_SIZE / DOCUMENT_SPANS[DOCUMENT_SPANS.length - 1] - 0.01 && value <= STICKER_SIZE;
 // 서버 validator와 클라이언트가 같은 목록을 봐야 한다. 클라이언트만 넓히면
 // 새 도구로 그린 문서가 서버에서 거부돼 저장이 영구 실패한다.
 // "pen"은 필압 렌더 도입 전의 기존 획이다. 기존 작품에는 실필압(0.5가 아닌 값)이 이미 기록돼
@@ -313,7 +318,7 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
       if (!op.shape || !SHAPE_KINDS.includes(op.shape) || !isHexColor(op.color) || !isStrokeWidth(op.width) || !Array.isArray(op.points) || op.points.length !== 2 || op.points.some(invalidPoint)) return null;
       if (op.filled !== undefined && typeof op.filled !== "boolean") return null;
     }
-    if (op.type === "sticker" && (!STICKER_ALLOWLIST.includes(op.sticker as (typeof STICKER_ALLOWLIST)[number]) || !Array.isArray(op.points) || op.points.length !== 1 || op.points.some(invalidPoint))) return null;
+    if (op.type === "sticker" && (!STICKER_ALLOWLIST.includes(op.sticker as (typeof STICKER_ALLOWLIST)[number]) || !Array.isArray(op.points) || op.points.length !== 1 || op.points.some(invalidPoint) || (op.fontSize !== undefined && !isStickerSize(op.fontSize)))) return null;
     if (op.type === "text") {
       if (typeof op.textObjectId !== "string" || !/^[a-zA-Z0-9_-]{8,80}$/.test(op.textObjectId)) return null;
       if (typeof op.text !== "string" || normalizeDrawingText(op.text) !== op.text) return null;
@@ -356,7 +361,7 @@ function normalizeOp(raw: DrawOp): DrawOp {
   }
   if (raw.type === "fill") { op.color = raw.color; op.points = points; }
   if (raw.type === "shape") { op.shape = raw.shape; op.color = raw.color; op.width = raw.width; op.points = points; if (raw.filled !== undefined) op.filled = raw.filled; }
-  if (raw.type === "sticker") { op.sticker = raw.sticker; op.points = points; }
+  if (raw.type === "sticker") { op.sticker = raw.sticker; op.points = points; if (raw.fontSize !== undefined) op.fontSize = raw.fontSize; }
   if (raw.type === "text") {
     op.textObjectId = raw.textObjectId;
     op.text = raw.text;

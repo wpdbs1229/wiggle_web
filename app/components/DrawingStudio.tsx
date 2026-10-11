@@ -2,8 +2,8 @@
 
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
-import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas } from "@/lib/draw-renderer";
+import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
+import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas, STICKER_EMOJI } from "@/lib/draw-renderer";
 import { mirrorOp } from "@/lib/symmetry";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
 import { DrawingInputMode, INPUT_MODE_EVENT } from "@/lib/input-mode";
@@ -111,7 +111,9 @@ const TEXT_KIND_OPTIONS: Array<{ kind: TextKind; icon: string; label: string; he
 type BrushTool = "pencil" | "crayon" | "marker" | "watercolor";
 type Tool = BrushTool | "eraser";
 type StrokeMeta = { tool: Tool; color: string; width: StrokeWidth };
-type StudioTool = Tool | "fill" | "shape" | "text";
+type StudioTool = Tool | "fill" | "shape" | "text" | "sticker" | "pipette";
+type StickerKind = (typeof STICKER_ALLOWLIST)[number];
+const STICKER_LABELS: Record<StickerKind, string> = { star: "별", heart: "하트", leaf: "나뭇잎", cloud: "구름", sparkle: "반짝이" };
 type PendingText = { text: string; textKind: TextKind; fontSize: TextSize; color: string };
 type GuidePhase = "independent" | "demo" | "practice";
 type TracePoint = { x: number; y: number };
@@ -564,6 +566,7 @@ export function DrawingStudio() {
   const [guideCollapsed, setGuideCollapsed] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("line");
   const [shapeFilled, setShapeFilled] = useState(false);
+  const [stickerKind, setStickerKind] = useState<StickerKind>("star");
   const [moreShapes, setMoreShapes] = useState(false);
   const [textComposerOpen, setTextComposerOpen] = useState(false);
   const [textDraft, setTextDraft] = useState("");
@@ -1610,7 +1613,7 @@ export function DrawingStudio() {
     setWidthSliderOpen(next === studioTool && !widthSliderOpen);
     setPaletteOpen(false);
     // 도형·글씨는 더보기 안에서 모양·글씨 옵션을 이어서 고르므로 창을 열어 둔다. 붓·지우개·채우기는 닫는다.
-    if (next !== studioTool && next !== "shape" && next !== "text") setToolSheetOpen(false);
+    if (next !== studioTool && next !== "shape" && next !== "text" && next !== "sticker") setToolSheetOpen(false);
     setStudioTool(next);
     if (next !== "eraser") hideEraserFootprint();
     if (next === "pencil" || next === "crayon" || next === "marker" || next === "watercolor") lastBrushRef.current = next;
@@ -1880,6 +1883,26 @@ export function DrawingStudio() {
     };
     commitOps(mirror ? [op, mirrorOp(op)] : [op]);
   }
+  function commitSticker(point: { x: number; y: number }) {
+    const operationId = newOperationId();
+    const op: DrawOp = {
+      opId: `op_${operationId}`,
+      clientOpId: `client_${operationId}`,
+      type: "sticker",
+      at: new Date().toISOString(),
+      sticker: stickerKind,
+      fontSize: documentWidthUnits(STICKER_SIZE),
+      points: [{ x: point.x, y: point.y }],
+    };
+    commitOps(mirror ? [op, mirrorOp(op)] : [op]);
+  }
+  // 스포이드: 도화지에 그려진 색을 그대로 집는다. 도화지는 흰 바탕이 칠해진 불투명 캔버스라 알파를 따로 풀지 않는다.
+  function pickColorFromCanvas(canvas: HTMLCanvasElement, point: { x: number; y: number }) {
+    const pixel = canvas.getContext("2d")?.getImageData(Math.min(canvas.width - 1, Math.floor(point.x * canvas.width)), Math.min(canvas.height - 1, Math.floor(point.y * canvas.height)), 1, 1).data;
+    if (!pixel) return;
+    pickColor(`#${[pixel[0], pixel[1], pixel[2]].map((value) => value.toString(16).padStart(2, "0")).join("").toUpperCase()}`);
+    chooseStudioTool(lastBrushRef.current);
+  }
   function commitShape(start: { x: number; y: number }, end: { x: number; y: number }) {
     // 점 하나 크기의 도형은 실수 탭이다. 커밋하지 않아야 2탭 흐름에서 시작점을 다시 찍을 수 있다.
     if (Math.hypot(end.x - start.x, end.y - start.y) < 0.012) return false;
@@ -2076,7 +2099,7 @@ export function DrawingStudio() {
       x: event.clientX,
       y: event.clientY,
     });
-    if (studioTool === "fill") {
+    if (studioTool === "fill" || studioTool === "sticker" || studioTool === "pipette") {
       // 커밋은 뗐을 때. 눌렀을 때 커밋하면 손바닥의 접촉 하나하나가 fill이 된다.
       event.currentTarget.setPointerCapture(event.pointerId);
       pendingFillRef.current = {
@@ -2281,7 +2304,9 @@ export function DrawingStudio() {
         return;
       }
       event.preventDefault();
-      commitFill(pendingFill.point);
+      if (studioTool === "pipette") pickColorFromCanvas(event.currentTarget, pendingFill.point);
+      else if (studioTool === "sticker") commitSticker(pendingFill.point);
+      else commitFill(pendingFill.point);
       return;
     }
     const drag = shapeDragRef.current;
@@ -3306,7 +3331,26 @@ export function DrawingStudio() {
                     <span className="tool-icon text-tool-icon" aria-hidden="true">Aa</span>
                     <span className="tool-name" aria-hidden="true">글씨</span>
                   </button>
+                  <button type="button" aria-label="스티커" title="스티커" aria-pressed={studioTool === "sticker"} onClick={() => chooseStudioTool("sticker")}>
+                    <span className="tool-icon" aria-hidden="true">{STICKER_EMOJI.star}</span>
+                    <span className="tool-name" aria-hidden="true">스티커</span>
+                  </button>
+                  <button type="button" aria-label="스포이드, 그림에서 색 뽑기" title="스포이드" aria-pressed={studioTool === "pipette"} onClick={() => chooseStudioTool("pipette")}>
+                    <span className="tool-icon" aria-hidden="true">💧</span>
+                    <span className="tool-name" aria-hidden="true">스포이드</span>
+                  </button>
                 </div>
+                {studioTool === "sticker" && (
+                  <div className="shape-options">
+                    <div className="shape-kind-row sticker-kind-row" role="group" aria-label="스티커 고르기">
+                      {STICKER_ALLOWLIST.map((kind) => (
+                        <button type="button" aria-label={STICKER_LABELS[kind]} title={STICKER_LABELS[kind]} aria-pressed={stickerKind === kind} onClick={() => setStickerKind(kind)} key={kind}>
+                          <span aria-hidden="true">{STICKER_EMOJI[kind]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {studioTool === "shape" && (
                   <div className="shape-options">
                     <div className="shape-kind-row" role="group" aria-label="도형 고르기">
