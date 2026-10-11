@@ -1,5 +1,18 @@
 # Wiggle Web 현재 상태
 
+## 2026-10-11 그림에 사진 넣기 + 타임랩스 수정 (`claude/photo-import`, 로컬 검증)
+
+- 사용자 결정: "그림에 사진 넣기"(`product-decisions.md` 교사와 메시지 26항). **운영 반영 전 `pending-decisions.md` P-015 확인이 먼저다** — 그래서 이 브랜치는 PR #33에 합치지 않았다. `claude/fill-lock-pipette` 위에 쌓았다.
+- **타임랩스 버그 수정(따로 커밋 `152f46b`).** 옮기기를 넣으면서 생긴 버그다: 타임랩스의 "한 동작씩 덧그리기" 빠른 길이 글씨만 예외로 두어, 도형·스티커를 옮기거나 지운 동작이 앞 상태 위에 겹쳐 그려졌다(옛 자리가 남음). `objectId`가 있는 동작은 처음부터 다시 그린다. **이 커밋은 PR #33에도 필요하다.**
+- **저장 형식.** 동작 종류 `image`: `image`(JPEG data URL, 처음 넣은 동작에만), `width`(도화지 단위), `aspect`(세로÷가로), 가운데 점 하나. 옮기기·크기·지우기는 도형·스티커와 같은 `objectId` 방식이고 그 동작에는 사진 글자를 싣지 않는다 — `visibleDrawOperations`가 처음 동작의 것을 붙여 준다. 서버 검증(`isDrawImage`): `data:image/jpeg;base64,` + JPEG 머리 + base64 글자만, 20만 자 이하, 그림 한 장에 3개까지.
+- **그리기.** 렌더러는 기다리지 않으므로 풀린 사진을 모아 두고(`decodedImages`), 처음 보는 사진은 풀기 시작한 뒤 `wiggle:draw-image-ready`를 알린다. 그리기 화면·선생님 실시간 보기·타임랩스가 `useDrawImageTick`으로 그 알림을 듣고 다시 그린다.
+- **넣기**(`addPhoto`). ⋯ 더보기 `사진` → 기기 파일 고르기(`accept="image/*"`) → 긴 변 640으로 줄여 JPEG(품질 0.82→0.6→0.4 중 한도에 드는 첫 값) → 화면 가운데에 화면 기준 너비 320으로 놓고 옮기기 도구로 골라 둔다. 원본 파일은 어디에도 보내지 않는다.
+- **몽그리 제외.** `documentImage(…, false)`가 사진 동작을 뺀 그림을 만든다. 몽그리 부르기·완성 짐작 두 호출이 이것을 쓴다(`tests/contracts.test.mjs`가 고정).
+- 변경 파일: `app/components/DrawingStudio.tsx`·`TeacherLiveView.tsx`·`TimelapsePlayer.tsx`, `app/api/family/session/route.ts`, `lib/drawing-model.ts`·`draw-renderer.ts`·`fill-lock.ts`·`fill-lock-canvas.ts`, `lib/use-draw-image-tick.ts`(신규), `tests/draw-photo.test.mjs`(신규), `tests/contracts.test.mjs`.
+- 검증(Node 22.23.2): typecheck 통과, lint 오류 0(기존 경고 14), build + 전체 테스트 **432/432**, `git diff --check` 통과, `browser-check.mjs http://localhost:3299` 전항목 통과.
+- 실제 브라우저(현재 트리 빌드, 1024×768): 1600×1200 그림 파일을 넣음 → 화면 가운데에 놓이고 골라짐 → 저장됨(서버 문서의 사진 8,395자, 너비 106.67 = 320÷3, 비율 0.75) → 끌어 옮기기·손잡이로 줄이기(옮긴 동작 두 개에 사진 글자 없음, 문서 전체 12.6KB) → 새로고침 뒤 같은 자리·크기로 다시 그려짐. 몽그리 부르기 요청을 가로채 보니 보내는 그림에 사진 색(하늘색)이 0픽셀, 화면 캔버스에는 9,089픽셀.
+- 남은 위험: ① **P-015 미해결.** ② 파일 고르기 창은 자동화로 열 수 없어 스크립트로 파일을 꽂았다 — 아이패드의 사진 보관함·카메라 고르기, HEIC 사진, 세로로 찍은 사진의 방향은 실기기에서 확인하지 못했다. ③ 선생님 실시간 보기·가족 보기·그림책에서 사진이 보이는지는 화면으로 확인하지 못했다(같은 렌더러와 알림을 쓰도록 연결만 했다). ④ 사진이 풀리기 전(수 밀리초)에 완성을 누르면 완성 PNG에 사진이 빠질 수 있다 — 화면에 사진이 보이면 이미 풀린 것이라 실제로는 일어나기 어렵다. ⑤ 지운 사진도 되돌리기 기록에 남아 3장 한도를 차지한다. ⑥ 그림책 편집기의 누끼(배경 지우기)는 가져오지 않았다.
+
 ## 2026-10-11 채우기 잠금 좁히기·스포이드를 색 옆으로 (`claude/fill-lock-pipette`, 로컬 검증)
 
 - 사용자 지시: 두 항목을 가리키며 "이것도해줘". 결정은 `product-decisions.md` 교사와 메시지 25항. `claude/object-resize`(PR #33에 합쳐 올린 것) 위에 쌓은 브랜치다.

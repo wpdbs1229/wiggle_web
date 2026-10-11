@@ -14,6 +14,30 @@ export const STICKER_EMOJI: Record<NonNullable<DrawOp["sticker"]>, string> = {
   star: "⭐", heart: "❤️", leaf: "🍃", cloud: "☁️", sparkle: "✨",
 };
 
+/* 사진은 풀어야 그릴 수 있는데 렌더러는 기다리지 않는다. 풀린 것은 여기 두고, 처음 보는 사진은 풀기 시작한 뒤
+ * 다 풀리면 창에 알린다 — 그리는 화면들이 그 알림을 듣고 다시 그린다(lib/use-draw-image-tick). */
+export const DRAW_IMAGE_READY_EVENT = "wiggle:draw-image-ready";
+const decodedImages = new Map<string, HTMLImageElement>();
+const decodingImages = new Set<string>();
+export function rememberDrawImage(source: string, image: HTMLImageElement) { decodedImages.set(source, image); }
+function drawPhoto(context: CanvasRenderingContext2D, op: DrawOp, size: number, docH: number) {
+  const center = op.points?.[0]; const source = op.image;
+  if (!center || !source || !op.width) return;
+  const image = decodedImages.get(source);
+  if (!image) {
+    if (typeof Image === "undefined" || decodingImages.has(source)) return;
+    // 풀기에 실패한 사진은 다시 시도하지 않는다(그릴 때마다 되풀이된다).
+    decodingImages.add(source);
+    const pending = new Image();
+    pending.onload = () => { decodedImages.set(source, pending); window.dispatchEvent(new Event(DRAW_IMAGE_READY_EVENT)); };
+    pending.src = source;
+    return;
+  }
+  const width = op.width * size / 1024; const height = width * (op.aspect ?? image.naturalHeight / image.naturalWidth);
+  context.save(); context.globalCompositeOperation = "source-over"; context.globalAlpha = 1;
+  context.drawImage(image, center.x * size - width / 2, center.y * docH - height / 2, width, height); context.restore();
+}
+
 function rgb(hex = "#1B3A57") {
   return [Number.parseInt(hex.slice(1, 3), 16), Number.parseInt(hex.slice(3, 5), 16), Number.parseInt(hex.slice(5, 7), 16)] as const;
 }
@@ -201,6 +225,7 @@ export function renderDrawOperation(context: CanvasRenderingContext2D, op: DrawO
   if (op.type === "fill") { floodFill(context, op, size, docH); return; }
   if (op.type === "shape") { drawShape(context, op, size, docH); return; }
   if (op.type === "text") { drawText(context, op, size, docH); return; }
+  if (op.type === "image") { drawPhoto(context, op, size, docH); return; }
   if (op.type === "sticker") {
     const center = op.points?.[0]; if (!center || !op.sticker) return;
     context.save(); context.globalCompositeOperation = "source-over"; context.globalAlpha = 1; context.textAlign = "center"; context.textBaseline = "middle"; context.font = `${Math.round((op.fontSize ?? STICKER_SIZE) * size / 1024)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;

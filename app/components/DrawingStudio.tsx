@@ -2,8 +2,9 @@
 
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, drawObjectBounds, drawObjectKey, movableDrawObjects, scaleDrawObject, shiftDrawPoints, visibleDrawOperations, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
-import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas, STICKER_EMOJI } from "@/lib/draw-renderer";
+import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, drawObjectBounds, drawObjectKey, IMAGE_DATA_PREFIX, IMAGE_MAX_CHARS, IMAGE_NEW_SCREEN_WIDTH, MAX_IMAGE_PAYLOADS, movableDrawObjects, scaleDrawObject, shiftDrawPoints, visibleDrawOperations, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
+import { rememberDrawImage, renderDrawDocument, renderDrawOperation, resetDrawingCanvas, STICKER_EMOJI } from "@/lib/draw-renderer";
+import { useDrawImageTick } from "@/lib/use-draw-image-tick";
 import { mirrorOp } from "@/lib/symmetry";
 import { lockedObjectKeys } from "@/lib/fill-lock-canvas";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
@@ -479,7 +480,9 @@ function encodeThumbnail(output: HTMLCanvasElement) {
  * 화면"이라는 이유로 imageData를 썼는데, 실제로는 화면이 아니라 문서 래스터 전체였고 — 넓은
  * 도화지(span 3)는 대부분이 흰 여백이라 340×290짜리 집이 모델 눈에 57×48px(넓이의 5.6%)로
  * 들어갔다. 이 함수는 span>1이면 그린 칸만 잘라 같은 크기에 9배 크게 담는다. */
-function documentImage(documentValue: DrawDocument, size: 256 | 1024) {
+/* 몽그리(외부 AI)에 보내는 그림에는 사진을 싣지 않는다(photos=false). 아이가 넣은 사진에는 얼굴이 있을 수 있다. */
+function documentImage(source: DrawDocument, size: 256 | 1024, photos = true) {
+  const documentValue = photos ? source : { ...source, ops: source.ops.filter((op) => op.type !== "image") };
   const span = documentSpan(documentValue);
   const bounds = span > 1 ? contentBounds(documentValue) : null;
   if (!bounds) {
@@ -571,6 +574,8 @@ export function DrawingStudio() {
   const [selectedObjectKey, setSelectedObjectKey] = useState<string | null>(null);
   const [objectDrag, setObjectDrag] = useState<{ dx: number; dy: number } | null>(null);
   const [objectScale, setObjectScale] = useState<number | null>(null);
+  const imageTick = useDrawImageTick();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [moreShapes, setMoreShapes] = useState(false);
   const [textComposerOpen, setTextComposerOpen] = useState(false);
   const [textDraft, setTextDraft] = useState("");
@@ -832,7 +837,7 @@ export function DrawingStudio() {
   useEffect(() => {
     documentStateRef.current = documentState;
     if (canvasRef.current) renderDocument(canvasRef.current, documentState, rasterWidthRef.current);
-  }, [documentState]);
+  }, [documentState, imageTick]);
   useEffect(() => {
     currentStepRef.current = artwork?.currentStep ?? 0;
     artworkRef.current = artwork;
@@ -1516,13 +1521,54 @@ export function DrawingStudio() {
     setObjectDrag(null);
     setSelectedObjectKey(target ? drawObjectKey(target) ?? null : null);
     if (target) setSaveState("골랐어요. 테두리를 끌어서 옮겨요");
-    else if (visibleDrawOperations(documentStateRef.current.ops).some((op) => (op.type === "shape" || op.type === "sticker") && hit(op))) setSaveState("채운 색이 닿아 있는 것은 옮길 수 없어요");
-    else setSaveState("옮길 도형이나 스티커를 눌러요");
+    else if (visibleDrawOperations(documentStateRef.current.ops).some((op) => (op.type === "shape" || op.type === "sticker" || op.type === "image") && hit(op))) setSaveState("채운 색이 닿아 있는 것은 옮길 수 없어요");
+    else setSaveState("옮길 도형이나 스티커, 사진을 눌러요");
   }
-  function updateDrawObject(current: DrawOp, changes: Partial<Pick<DrawOp, "points" | "fontSize" | "deleted">>) {
+  function updateDrawObject(current: DrawOp, changes: Partial<Pick<DrawOp, "points" | "fontSize" | "width" | "deleted">>) {
     const key = current.objectId ?? current.opId;
     const operationId = newOperationId();
-    return commitOps([{ ...current, ...changes, objectId: key, opId: `op_${operationId}`, clientOpId: `client_${operationId}`, at: new Date().toISOString() }]);
+    // 사진 글자는 처음 넣은 동작에만 둔다. 옮긴 동작에까지 실으면 옮길 때마다 저장 공간이 사진만큼 준다.
+    return commitOps([{ ...current, ...changes, image: undefined, objectId: key, opId: `op_${operationId}`, clientOpId: `client_${operationId}`, at: new Date().toISOString() }]);
+  }
+  /* 사진은 기기에서 긴 변 640으로 줄여 JPEG로 다시 굽는다 — 파일이 작아지고, 찍은 곳·시각 같은 EXIF가 떨어진다.
+   * 원본 파일은 어디에도 보내지 않는다. */
+  async function addPhoto(file: File | undefined) {
+    if (!file || conflictDraftRef.current) return;
+    if (documentStateRef.current.ops.filter((op) => op.image).length >= MAX_IMAGE_PAYLOADS) {
+      setSaveState(`사진은 그림 한 장에 ${MAX_IMAGE_PAYLOADS}장까지 넣을 수 있어요`);
+      return;
+    }
+    try {
+      const bitmap = await createImageBitmap(file);
+      const ratio = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
+      const scaled = Object.assign(document.createElement("canvas"), { width: Math.max(1, Math.round(bitmap.width * ratio)), height: Math.max(1, Math.round(bitmap.height * ratio)) });
+      const context = scaled.getContext("2d");
+      if (!context) throw new Error("no canvas");
+      // 투명한 그림은 JPEG에서 검게 나오므로 흰 종이를 먼저 깐다.
+      context.fillStyle = "#ffffff"; context.fillRect(0, 0, scaled.width, scaled.height);
+      context.drawImage(bitmap, 0, 0, scaled.width, scaled.height);
+      bitmap.close();
+      const source = [0.82, 0.6, 0.4].map((quality) => scaled.toDataURL("image/jpeg", quality)).find((value) => value.length <= IMAGE_MAX_CHARS);
+      if (!source?.startsWith(IMAGE_DATA_PREFIX)) throw new Error("too large");
+      const image = new Image();
+      image.src = source;
+      await image.decode();
+      rememberDrawImage(source, image);
+      const center = canvasPointFromClient(window.innerWidth / 2, window.innerHeight / 2) ?? { x: 0.5, y: 0.5 };
+      const operationId = newOperationId();
+      const op: DrawOp = {
+        opId: `op_${operationId}`, clientOpId: `client_${operationId}`, type: "image", at: new Date().toISOString(),
+        image: source, aspect: Math.round(scaled.height / scaled.width * 10000) / 10000,
+        width: documentWidthUnits(Math.min(IMAGE_NEW_SCREEN_WIDTH, Math.round(window.innerWidth * 0.6))), points: [center],
+      };
+      if (!commitOps([op])) { setSaveState("사진을 넣지 못했어요. 종이의 저장 공간을 확인해 주세요"); return; }
+      // 넣자마자 옮기고 크기를 바꿀 수 있게 골라 둔다.
+      chooseStudioTool("move");
+      setSelectedObjectKey(drawObjectKey(op) ?? null);
+      setSaveState("사진을 넣었어요. 끌어서 옮기고 모서리로 크기를 바꿔요");
+    } catch {
+      setSaveState("이 사진은 넣을 수 없어요. 다른 사진을 골라 주세요");
+    }
   }
   function objectDragDelta(event: ReactPointerEvent<HTMLButtonElement>) {
     const drag = objectDragRef.current;
@@ -2714,7 +2760,7 @@ export function DrawingStudio() {
         artworkId: artwork.id,
         expectedRevision: revisionRef.current,
         document: documentStateRef.current,
-        imageDataUrl: documentImage(documentStateRef.current, 1024),
+        imageDataUrl: documentImage(documentStateRef.current, 1024, false),
         childChoice,
         openedBy: auto ? "mongri" : "child",
       });
@@ -2801,7 +2847,7 @@ export function DrawingStudio() {
     setInterpretLoading(true);
     setInterpretation(null);
     try {
-      const response = await grimiFetch({ action: "interpret", artworkId: artwork.id, imageDataUrl: documentImage(documentStateRef.current, 1024) }, INTERPRET_TIMEOUT_MS);
+      const response = await grimiFetch({ action: "interpret", artworkId: artwork.id, imageDataUrl: documentImage(documentStateRef.current, 1024, false) }, INTERPRET_TIMEOUT_MS);
       const data = (await response.json()) as { interpretation?: StoryInterpretation };
       if (response.ok && data.interpretation) setInterpretation(data.interpretation);
     } catch {
@@ -3307,7 +3353,7 @@ export function DrawingStudio() {
                   <button
                     type="button"
                     className="text-object-selection"
-                    aria-label={`${selectedObject.type === "sticker" ? "스티커" : "도형"}. 끌어서 옮기기`}
+                    aria-label={`${selectedObject.type === "sticker" ? "스티커" : selectedObject.type === "image" ? "사진" : "도형"}. 끌어서 옮기기`}
                     style={{
                       left: `${(selectedObjectBox.x + selectedObjectBox.width / 2) * 100}%`,
                       top: `${(selectedObjectBox.y + selectedObjectBox.height / 2) * 100}%`,
@@ -3490,7 +3536,12 @@ export function DrawingStudio() {
                     <span className="tool-icon text-tool-icon" aria-hidden="true">Aa</span>
                     <span className="tool-name" aria-hidden="true">글씨</span>
                   </button>
-                  <button type="button" aria-label="옮기기, 도형과 스티커 옮기기" title="옮기기" aria-pressed={studioTool === "move"} onClick={() => chooseStudioTool("move")}>
+                  <button type="button" aria-label="사진 넣기" title="사진" onClick={() => photoInputRef.current?.click()}>
+                    <span className="tool-icon" aria-hidden="true">🖼️</span>
+                    <span className="tool-name" aria-hidden="true">사진</span>
+                  </button>
+                  <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; setToolSheetOpen(false); void addPhoto(file); }} />
+                  <button type="button" aria-label="옮기기, 도형·스티커·사진 옮기기" title="옮기기" aria-pressed={studioTool === "move"} onClick={() => chooseStudioTool("move")}>
                     <span className="tool-icon text-tool-icon" aria-hidden="true">✥</span>
                     <span className="tool-name" aria-hidden="true">옮기기</span>
                   </button>

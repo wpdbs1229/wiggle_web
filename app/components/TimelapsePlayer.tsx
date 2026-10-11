@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DOCUMENT_SIZE, documentHeight, DrawDocument, DrawOp } from "@/lib/drawing-model";
 import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas } from "@/lib/draw-renderer";
+import { useDrawImageTick } from "@/lib/use-draw-image-tick";
 import { advancePlaybackFrame, resolvePlayToggle } from "@/lib/timelapse-playback";
 import { useModalDialog } from "./useModalDialog";
 
@@ -11,6 +12,7 @@ export function TimelapsePlayer({ document, onClose }: { document: DrawDocument;
   useModalDialog(dialogRef, onClose);
   const canvasRef = useRef<HTMLCanvasElement>(null); const [frame, setFrame] = useState(document.ops.length); const [playing, setPlaying] = useState(false);
   const renderedFrame = useRef(-1); const renderedOps = useRef<DrawOp[] | null>(null);
+  const imageTick = useDrawImageTick(); const renderedTick = useRef(imageTick);
   useEffect(() => {
     // 재생 래스터는 스튜디오와 같은 1024로 맞춘다. 640이면 픽셀 기반 채우기(floodFill)의
     // 경계 판정이 스튜디오와 달라져, 얇은 굵기 + 밝은 색 조합에서 채우기가 선을 새어 나갈 수 있다.
@@ -21,6 +23,8 @@ export function TimelapsePlayer({ document, onClose }: { document: DrawDocument;
     const size = { width: DOCUMENT_SIZE, height: documentHeight(document) };
     if (canvas.width !== size.width || canvas.height !== size.height) { canvas.width = size.width; canvas.height = size.height; renderedFrame.current = -1; renderedOps.current = null; }
     const context = canvas.getContext("2d"); if (!context) return;
+    // 사진이 뒤늦게 풀리면 이미 지나간 장면에도 그 사진이 있어야 한다 — 처음부터 다시 그린다.
+    if (renderedTick.current !== imageTick) { renderedTick.current = imageTick; renderedFrame.current = -1; }
     const canAdvanceOne = renderedOps.current === document.ops && renderedFrame.current + 1 === frame;
     // 글씨와, 도형·스티커를 옮기거나 지운 동작(objectId)은 앞 상태를 대신한다. 한 장만 덧그리면 옛 자리가 남으므로 처음부터 다시 그린다.
     const next = document.ops[frame - 1];
@@ -30,7 +34,7 @@ export function TimelapsePlayer({ document, onClose }: { document: DrawDocument;
       renderDrawDocument(context, document.ops, size, frame);
     }
     renderedOps.current = document.ops; renderedFrame.current = frame;
-  }, [document, frame]);
+  }, [document, frame, imageTick]);
   useEffect(() => {
     if (!playing) return;
     const timer = window.setInterval(() => setFrame((value) => {

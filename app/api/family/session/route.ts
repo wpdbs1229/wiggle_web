@@ -37,6 +37,8 @@ function publicTimelapseOps(serialized: string) {
       sticker: operation.sticker,
       textObjectId: operation.textObjectId,
       objectId: operation.objectId,
+      image: operation.image,
+      aspect: operation.aspect,
       text: operation.text,
       textKind: operation.textKind,
       fontSize: operation.fontSize,

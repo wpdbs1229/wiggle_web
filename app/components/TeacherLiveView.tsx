@@ -2,6 +2,7 @@
 
 import { PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { renderDrawDocument, resetDrawingCanvas } from "@/lib/draw-renderer";
+import { useDrawImageTick } from "@/lib/use-draw-image-tick";
 import { documentHeight, documentSpan, type DrawDocument } from "@/lib/drawing-model";
 import { drawMarkStrokes, MARK_ANSWER_LABEL, MARK_MAX_POINTS_PER_STROKE, MARK_MAX_STROKES, MARK_NOTE_MAX, type MarkAnswer, type MarkStroke } from "@/lib/teacher-marks";
 
@@ -34,6 +35,7 @@ export function TeacherLiveView({ classroomId, studentId, nickname, onPost }: {
   const markRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef<MarkStroke | null>(null);
   const renderedKey = useRef("");
+  const imageTick = useDrawImageTick();
   const knownRef = useRef<LiveArtwork | null>(null);
 
   const load = useCallback(async () => {
@@ -71,7 +73,7 @@ export function TeacherLiveView({ classroomId, studentId, nickname, onPost }: {
   useEffect(() => {
     const canvas = baseRef.current;
     if (!canvas || !artwork) return;
-    const key = `${artwork.id}:${artwork.revision}:${artwork.updatedAt}`;
+    const key = `${artwork.id}:${artwork.revision}:${artwork.updatedAt}:${imageTick}`;
     if (renderedKey.current === key && canvas.height === docHeight) return;
     canvas.width = 1024; canvas.height = docHeight;
     const context = canvas.getContext("2d");
@@ -79,7 +81,7 @@ export function TeacherLiveView({ classroomId, studentId, nickname, onPost }: {
     resetDrawingCanvas(context, { width: 1024, height: docHeight });
     renderDrawDocument(context, artwork.document.ops, { width: 1024, height: docHeight });
     renderedKey.current = key;
-  }, [artwork, docHeight]);
+  }, [artwork, docHeight, imageTick]);
 
   const openMark = mark && !mark.answer ? mark : null;
   const redrawMarks = useCallback(() => {

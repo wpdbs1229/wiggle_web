@@ -41,7 +41,7 @@ export function fillLockedObjectKeys(ops: readonly DrawOp[], raster: LockRaster)
         const mask = computeFloodFillMask(pixels, raster.width, x, y, sampleRgb(pixels, raster.width, x, y), { height: raster.height });
         for (const item of drawn) if (!locked.has(item.key) && touches(mask, raster.width, item.cells)) locked.add(item.key);
       }
-    } else if (op.type === "shape" || op.type === "sticker") {
+    } else if (op.type === "shape" || op.type === "sticker" || op.type === "image") {
       const key = drawObjectKey(op);
       if (key) drawn.push({ key, cells: raster.footprint(op) });
     }

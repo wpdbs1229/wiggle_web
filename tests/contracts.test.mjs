@@ -43,7 +43,7 @@ test("keeps canvas contracts and guide data separate", async () => {
      2.5가 그대로 걸려 예전 밀도를 유지하고, 굵은 붓만 성글어진다. 수치는 drawing-model 시험이 지킨다. */
   assert.match(studio, /const gap = strokePointGap\(meta\.tool, meta\.width\);/);
   assert.match(studio, /\) >= gap\)/); assert.match(studio, /guideRef/); assert.match(studio, /documentImage\([^)]+, 256\)/);
-  assert.match(studio, /imageDataUrl: documentImage\(documentStateRef\.current, 1024\)/);
+  assert.match(studio, /imageDataUrl: documentImage\(documentStateRef\.current, 1024, false\)/);
   assert.doesNotMatch(studio, /imageDataUrl: imageData\(canvasRef\.current/, "AI에 도화지 전체를 다시 보내면 안 된다");
   assert.match(studio, /strokeStyle = "#087EA8"[\s\S]*globalAlpha = 0\.92[\s\S]*lineWidth = 9[\s\S]*setLineDash\(\[20, 14\]\)/);
   assert.match(studio, /item\.step === lessonStep \+ 1/); assert.doesNotMatch(studio, /item\.step <= lessonStep \+ 1/);

@@ -36,7 +36,10 @@ export const toScreenUnits = (documentValue: number, span: number) => Math.round
 export function contentBounds(document: DrawDocument): { x: number; y: number; width: number; height: number } | null {
   let left = 1, top = 1, right = 0, bottom = 0, found = false, widest = 0;
   for (const op of visibleDrawOperations(document.ops)) {
-    for (const point of op.points ?? []) {
+    // 사진은 가운데 점과 너비·비율로 저장된다. 다른 것들처럼 "가장 굵은 것"만큼 사방을 넓히면
+    // 사진 한 장 때문에 잘라 낸 그림 전체에 흰 여백이 붙으므로, 사진 상자를 그대로 더한다.
+    const photo = op.type === "image" ? drawObjectBounds(op, documentHeight(document)) : null;
+    for (const point of photo ? [{ x: Math.max(0, photo.x), y: Math.max(0, photo.y) }, { x: Math.min(1, photo.x + photo.width), y: Math.min(1, photo.y + photo.height) }] : op.points ?? []) {
       found = true;
       if (point.x < left) left = point.x;
       if (point.x > right) right = point.x;
@@ -44,7 +47,7 @@ export function contentBounds(document: DrawDocument): { x: number; y: number; w
       if (point.y > bottom) bottom = point.y;
     }
     // 글자·스티커는 점 하나로 저장되므로 그 크기만큼 여유를 둔다.
-    const reach = op.type === "text" ? (op.fontSize ?? 64) * 1.2 : op.type === "sticker" ? (op.fontSize ?? STICKER_SIZE) : (op.width ?? 0);
+    const reach = op.type === "image" ? 0 : op.type === "text" ? (op.fontSize ?? 64) * 1.2 : op.type === "sticker" ? (op.fontSize ?? STICKER_SIZE) : (op.width ?? 0);
     if (reach > widest) widest = reach;
   }
   if (!found) return null;
@@ -97,6 +100,19 @@ export const STROKE_WIDTH_MAX = 60;
 /* 넓은 도화지에서는 화면 1픽셀이 도화지 1/3단위라 소수 굵기가 필요하다(0.01 단위까지). */
 export const STROKE_WIDTH_UNIT_MIN = 0.2;
 export const STROKE_WIDTH_SCREEN_MAX = 60;
+/* 그림에 넣는 사진(2026-10-11 사용자 결정). 사진은 기기에서 줄이고 JPEG로 다시 구워(위치 정보 등 EXIF가 떨어진다)
+ * data URL 그대로 동작에 담는다 — 따로 올리는 길을 만들지 않아, 그림을 볼 수 있는 사람만 사진도 본다.
+ * 사진 글자는 처음 넣은 동작 하나에만 있고, 옮기기·크기 동작은 objectId로 그것을 가리킨다. */
+export const IMAGE_DATA_PREFIX = "data:image/jpeg;base64,";
+export const IMAGE_MAX_CHARS = 200_000;
+// ponytail: 지운 사진도 되돌리기를 위해 기록에 남아 한도를 차지한다. 아이가 막히면 지운 사진의 글자를 저장 때 비우는 쪽으로 푼다.
+export const MAX_IMAGE_PAYLOADS = 3;
+export const IMAGE_SCREEN_MIN = 80;
+export const IMAGE_SCREEN_MAX = 900;
+export const IMAGE_NEW_SCREEN_WIDTH = 320;
+// "/9j/"는 JPEG 머리(FF D8 FF)의 base64다. 모양만 맞춘 다른 내용이 실리지 않게 머리까지 본다.
+export const isDrawImage = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= IMAGE_MAX_CHARS && value.startsWith(`${IMAGE_DATA_PREFIX}/9j/`) && /^[A-Za-z0-9+/]+={0,2}$/.test(value.slice(IMAGE_DATA_PREFIX.length));
 export const SHAPE_KINDS = ["line", "circle", "triangle", "rectangle", "rounded-rectangle", "star", "heart", "arrow", "curve", "cloud"] as const;
 export const TEXT_KINDS = ["label", "title", "speech"] as const;
 export const TEXT_SIZES = [48, 64, 84] as const;
@@ -156,6 +172,7 @@ function opBytes(op: DrawOp) {
     + (op.textObjectId?.length ?? 0) + (op.textKind?.length ?? 0) + (op.objectId?.length ?? 0)
     // UTF-8에서 한 UTF-16 code unit가 차지할 수 있는 양보다 넉넉하게 잡는다.
     + (op.text?.length ?? 0) * 6
+    + (op.image?.length ?? 0) + (op.aspect === undefined ? 0 : 24)
     + (op.points?.length ?? 0) * POINT_BYTES;
 }
 
@@ -188,7 +205,7 @@ export type TextSize = (typeof TEXT_SIZES)[number];
 export type DrawOp = {
   opId: string;
   clientOpId: string;
-  type: "stroke" | "fill" | "shape" | "sticker" | "text";
+  type: "stroke" | "fill" | "shape" | "sticker" | "text" | "image";
   at: string;
   tool?: StrokeTool;
   color?: string;
@@ -207,6 +224,9 @@ export type DrawOp = {
   /* 도형·스티커를 옮기거나 지운 동작이 가리키는 원래 물건. 처음 그린 동작에는 없고(그 동작의 opId가 곧 이름이다),
    * 옮길 때마다 같은 objectId로 전체 상태를 새로 덧붙인다 — 글씨의 textObjectId와 같은 방식이다. */
   objectId?: string;
+  /* 사진: JPEG data URL(처음 넣은 동작에만), 세로÷가로 비율. 너비는 width(도화지 단위)를 쓴다. */
+  image?: string;
+  aspect?: number;
   deleted?: boolean;
 };
 
@@ -274,7 +294,7 @@ export function normalizeDrawingText(value: string) {
  *  종류를 앞에 붙여, 글씨 이름과 도형 이름이 우연히 같아도 서로를 가리지 않게 한다. */
 export function drawObjectKey(op: DrawOp) {
   if (op.type === "text") return op.textObjectId ? `text:${op.textObjectId}` : undefined;
-  if (op.type === "shape" || op.type === "sticker") return `object:${op.objectId ?? op.opId}`;
+  if (op.type === "shape" || op.type === "sticker" || op.type === "image") return `object:${op.objectId ?? op.opId}`;
   return undefined;
 }
 
@@ -283,23 +303,33 @@ export function drawObjectKey(op: DrawOp) {
 export function visibleDrawOperations(ops: readonly DrawOp[], limit = ops.length) {
   const end = Math.max(0, Math.min(ops.length, limit));
   const latest = new Map<string, number>();
+  const photos = new Map<string, string>();
   for (let index = 0; index < end; index += 1) {
     const key = drawObjectKey(ops[index]);
-    if (key) latest.set(key, index);
+    if (!key) continue;
+    latest.set(key, index);
+    const photo = ops[index].image;
+    if (photo) photos.set(key, photo);
   }
   const visible: DrawOp[] = [];
   for (let index = 0; index < end; index += 1) {
     const op = ops[index];
     const key = drawObjectKey(op);
-    if (!key || (latest.get(key) === index && !op.deleted)) visible.push(op);
+    if (key && (latest.get(key) !== index || op.deleted)) continue;
+    // 옮긴 사진 동작에는 사진 글자가 없다. 처음 넣은 동작의 것을 붙여 준다.
+    visible.push(op.type === "image" && !op.image && key ? { ...op, image: photos.get(key) } : op);
   }
   return visible;
 }
 
-/** 물건이 도화지에서 차지하는 칸(0~1). 도형은 두 점의 상자, 스티커는 가운데 점 둘레의 정사각이다. */
+/** 물건이 도화지에서 차지하는 칸(0~1). 도형은 두 점의 상자, 스티커는 가운데 점 둘레의 정사각, 사진은 너비·비율의 상자다. */
 export function drawObjectBounds(op: DrawOp, docHeight: number) {
   const points = op.points ?? [];
   if (!points.length) return null;
+  if (op.type === "image") {
+    const width = (op.width ?? 0) / DOCUMENT_SIZE, height = (op.width ?? 0) * (op.aspect ?? 1) / docHeight;
+    return { x: points[0].x - width / 2, y: points[0].y - height / 2, width, height };
+  }
   const reach = op.type === "sticker" ? (op.fontSize ?? STICKER_SIZE) / 2 : (op.width ?? 0) / 2;
   const padX = reach / DOCUMENT_SIZE, padY = reach / docHeight;
   const xs = points.map((point) => point.x), ys = points.map((point) => point.y);
@@ -309,15 +339,19 @@ export function drawObjectBounds(op: DrawOp, docHeight: number) {
 
 /** 지금 옮길 수 있는 도형·스티커(그려지는 순서). `locked`는 채우기의 색이 닿아 있어 잠긴 것들이다(lib/fill-lock). */
 export function movableDrawObjects(ops: readonly DrawOp[], locked: ReadonlySet<string> = new Set()) {
-  return visibleDrawOperations(ops).filter((op) => (op.type === "shape" || op.type === "sticker") && !locked.has(drawObjectKey(op) ?? ""));
+  return visibleDrawOperations(ops).filter((op) => (op.type === "shape" || op.type === "sticker" || op.type === "image") && !locked.has(drawObjectKey(op) ?? ""));
 }
 
 // 이보다 작게 줄이면 다시 누르기 어렵다(도형 그리기가 받는 최소 길이 0.012보다 넉넉하게).
 const SHAPE_MIN_SPAN = 0.03;
 /** 물건을 가운데 기준으로 factor배 한 상태. 스티커는 크기(fontSize)가, 도형은 두 점이 바뀐다 — 선 굵기는 그대로다.
  *  도화지 밖으로 나가거나 너무 작아지지 않는 만큼만 바뀐다. */
-export function scaleDrawObject(op: DrawOp, factor: number, span: number): Pick<DrawOp, "points" | "fontSize"> {
+export function scaleDrawObject(op: DrawOp, factor: number, span: number): Pick<DrawOp, "points" | "fontSize" | "width"> {
   if (!Number.isFinite(factor) || factor <= 0) return {};
+  if (op.type === "image") {
+    const most = Math.min(DOCUMENT_SIZE, toDocumentUnits(IMAGE_SCREEN_MAX, span));
+    return { width: Math.max(toDocumentUnits(IMAGE_SCREEN_MIN, span), Math.min(most, Math.round((op.width ?? 0) * factor * 100) / 100)) };
+  }
   if (op.type === "sticker") {
     const size = (op.fontSize ?? STICKER_SIZE) * factor;
     return { fontSize: Math.max(toDocumentUnits(STICKER_SCREEN_MIN, span), Math.min(toDocumentUnits(STICKER_SCREEN_MAX, span), Math.round(size * 100) / 100)) };
@@ -356,6 +390,7 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
   if (doc.span !== undefined && !isDocumentSpan(doc.span)) return null;
   const seen = new Set<string>();
   const activeTextIds = new Set<string>();
+  let imagePayloads = 0;
   for (const raw of doc.ops) {
     if (!raw || typeof raw !== "object") return null;
     const op = raw as DrawOp;
@@ -365,7 +400,7 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
     if (!/^[a-zA-Z0-9_-]{8,80}$/.test(op.opId) || !/^[a-zA-Z0-9_-]{8,80}$/.test(op.clientOpId) || seen.has(op.clientOpId)) return null;
     seen.add(op.clientOpId);
     // 제어문자가 섞인 날짜도 Date.parse는 통과시킨다. JSON에서 이스케이프되며 길이가 폭증하므로 길이를 먼저 막는다.
-    if (!["stroke", "fill", "shape", "sticker", "text"].includes(op.type) || op.at.length > 40 || !Number.isFinite(Date.parse(op.at))) return null;
+    if (!["stroke", "fill", "shape", "sticker", "text", "image"].includes(op.type) || op.at.length > 40 || !Number.isFinite(Date.parse(op.at))) return null;
     if (op.type === "stroke") {
       if (!op.tool || !STROKE_TOOLS.includes(op.tool) || !isStrokeWidth(op.width) || !Array.isArray(op.points) || op.points.length < 1 || op.points.length > MAX_STROKE_POINTS) return null;
       if (op.tool !== "eraser" && !isHexColor(op.color)) return null;
@@ -381,7 +416,15 @@ export function validateDrawDocument(value: unknown): DrawDocument | null {
       if (op.filled !== undefined && typeof op.filled !== "boolean") return null;
     }
     if (op.type === "sticker" && (!STICKER_ALLOWLIST.includes(op.sticker as (typeof STICKER_ALLOWLIST)[number]) || !Array.isArray(op.points) || op.points.length !== 1 || op.points.some(invalidPoint) || (op.fontSize !== undefined && !isStickerSize(op.fontSize)))) return null;
-    if (op.type === "shape" || op.type === "sticker") {
+    if (op.type === "image") {
+      if (!Array.isArray(op.points) || op.points.length !== 1 || op.points.some(invalidPoint)) return null;
+      if (typeof op.width !== "number" || !Number.isFinite(op.width) || op.width < IMAGE_SCREEN_MIN / DOCUMENT_SPANS[DOCUMENT_SPANS.length - 1] - 0.01 || op.width > DOCUMENT_SIZE) return null;
+      if (typeof op.aspect !== "number" || !Number.isFinite(op.aspect) || op.aspect < 0.1 || op.aspect > 10) return null;
+      // 사진 글자는 처음 넣은 동작에만 싣는다. 옮긴 동작마다 실리면 한 번 옮길 때마다 수백 KB가 쌓인다.
+      if (op.objectId === undefined ? !isDrawImage(op.image) : op.image !== undefined) return null;
+      if (op.image !== undefined && (imagePayloads += 1) > MAX_IMAGE_PAYLOADS) return null;
+    }
+    if (op.type === "shape" || op.type === "sticker" || op.type === "image") {
       if (op.objectId !== undefined && (typeof op.objectId !== "string" || !/^[a-zA-Z0-9_-]{8,80}$/.test(op.objectId))) return null;
       if (op.deleted !== undefined && typeof op.deleted !== "boolean") return null;
     }
@@ -428,7 +471,8 @@ function normalizeOp(raw: DrawOp): DrawOp {
   if (raw.type === "fill") { op.color = raw.color; op.points = points; }
   if (raw.type === "shape") { op.shape = raw.shape; op.color = raw.color; op.width = raw.width; op.points = points; if (raw.filled !== undefined) op.filled = raw.filled; }
   if (raw.type === "sticker") { op.sticker = raw.sticker; op.points = points; if (raw.fontSize !== undefined) op.fontSize = raw.fontSize; }
-  if (raw.type === "shape" || raw.type === "sticker") {
+  if (raw.type === "image") { op.points = points; op.width = raw.width; op.aspect = raw.aspect; if (raw.image !== undefined) op.image = raw.image; }
+  if (raw.type === "shape" || raw.type === "sticker" || raw.type === "image") {
     if (raw.objectId !== undefined) op.objectId = raw.objectId;
     if (raw.deleted !== undefined) op.deleted = raw.deleted;
   }

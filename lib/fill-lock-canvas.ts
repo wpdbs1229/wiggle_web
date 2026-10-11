@@ -14,7 +14,7 @@ export function lockedObjectKeys(document: DrawDocument): ReadonlySet<string> {
   const cached = cache.get(ops);
   if (cached) return cached;
   let result = NONE;
-  if (ops.some((op) => op.type === "fill") && ops.some((op) => op.type === "shape" || op.type === "sticker")) {
+  if (ops.some((op) => op.type === "fill") && ops.some((op) => op.type === "shape" || op.type === "sticker" || op.type === "image")) {
     const width = DOCUMENT_SIZE, height = documentHeight(document);
     const size = { width, height };
     const canvas = Object.assign(window.document.createElement("canvas"), size);
