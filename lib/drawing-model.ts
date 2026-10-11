@@ -307,19 +307,9 @@ export function drawObjectBounds(op: DrawOp, docHeight: number) {
   return { x: left, y: top, width: Math.max(...xs) + padX - left, height: Math.max(...ys) + padY - top };
 }
 
-/** 지금 옮길 수 있는 도형·스티커(그려지는 순서).
- *  **채우기를 한 뒤에는 그 전에 그린 것을 옮기지 못한다.** 채우기는 저장된 색이 아니라 "그 자리에서 번지기"라
- *  다시 그릴 때마다 계산된다 — 동그라미를 그리고 안을 채운 뒤 동그라미를 옮기면, 번질 때 막아 주던 선이
- *  사라져 색이 도화지 전체로 번진다. */
-export function movableDrawObjects(ops: readonly DrawOp[]) {
-  const firstIndex = new Map<string, number>();
-  let lastFill = -1;
-  ops.forEach((op, index) => {
-    if (op.type === "fill") lastFill = index;
-    const key = drawObjectKey(op);
-    if (key && !firstIndex.has(key)) firstIndex.set(key, index);
-  });
-  return visibleDrawOperations(ops).filter((op) => (op.type === "shape" || op.type === "sticker") && (firstIndex.get(drawObjectKey(op) ?? "") ?? -1) > lastFill);
+/** 지금 옮길 수 있는 도형·스티커(그려지는 순서). `locked`는 채우기의 색이 닿아 있어 잠긴 것들이다(lib/fill-lock). */
+export function movableDrawObjects(ops: readonly DrawOp[], locked: ReadonlySet<string> = new Set()) {
+  return visibleDrawOperations(ops).filter((op) => (op.type === "shape" || op.type === "sticker") && !locked.has(drawObjectKey(op) ?? ""));
 }
 
 // 이보다 작게 줄이면 다시 누르기 어렵다(도형 그리기가 받는 최소 길이 0.012보다 넉넉하게).

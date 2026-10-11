@@ -2036,11 +2036,18 @@ body {
 /* 무지개는 6색 conic이라 44px에서 면이 각지고 가운데 수렴점이 얼룩처럼 보였다.
    색을 12개로 늘려 띠를 고르게 하고, 가운데는 종이색 원으로 덮어 수렴점을 없앤다.
    테두리 곡선의 계단은 radial mask로 다듬는다. */
-.dock-more-colors { grid-column:6; grid-row:1 / span 2; align-self:center; border-color:transparent;
+.dock-more-colors { grid-column:6; grid-row:1; border-color:transparent;
   background:radial-gradient(circle closest-side at 50% 50%,#fffdf6 0 24%,rgba(255,253,246,0) 27%),conic-gradient(#e53935,#fb8c00,#fdd835,#c0ca33,#43a047,#26a69a,#26c6da,#1e88e5,#3949ab,#8e24aa,#ec407a,#e53935);
   /* closest-side가 없으면 기본값(farthest-corner)이라 네모 귀퉁이까지 마스크가 덮여 색 띠가 원 밖으로 삐져나온다. */
   -webkit-mask-image:radial-gradient(circle closest-side at 50% 50%,#000 97%,transparent 100%); mask-image:radial-gradient(circle closest-side at 50% 50%,#000 97%,transparent 100%); }
 .dock-more-colors[aria-pressed="true"] { box-shadow:0 0 0 3px #fbf6e8,0 0 0 6px #184028; }
+/* 스포이드: 넓은 화면은 무지개 아래 칸, 좁은 화면은 더보기 안(아래 미디어 규칙). */
+.dock-pipette { grid-column:6; grid-row:2; display:grid; place-items:center; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border:2px solid rgba(24,40,28,.12); border-radius:50%; background:#fffdf6; font-size:20px; cursor:pointer; }
+.dock-pipette[aria-pressed="true"] { box-shadow:0 0 0 3px #fbf6e8,0 0 0 6px #184028; }
+.dock-pipette:focus-visible { outline:3px solid #184028; outline-offset:3px; }
+@media (min-width:901px) { .dock-sheet .make-group button.sheet-pipette { display:none; } }
+@media (max-width:900px) { .dock-pipette { display:none; } }
+@media (max-height:500px) and (orientation:landscape) { .dock-pipette { display:none; } .dock-sheet .make-group button.sheet-pipette { display:flex; } }
 .dock-palette { position:absolute; z-index:2; bottom:calc(100% + 18px); right:-8px; display:grid; grid-template-columns:repeat(4,48px); gap:8px; padding:12px; border:1px solid #ece2c4; border-radius:20px; background:#fffdf6; box-shadow:0 12px 30px rgba(70,55,20,.2); }
 .dock-palette .dock-color { width:48px; height:48px; }
 

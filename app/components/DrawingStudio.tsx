@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, drawObjectBounds, drawObjectKey, movableDrawObjects, scaleDrawObject, shiftDrawPoints, visibleDrawOperations, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
 import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas, STICKER_EMOJI } from "@/lib/draw-renderer";
 import { mirrorOp } from "@/lib/symmetry";
+import { lockedObjectKeys } from "@/lib/fill-lock-canvas";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
 import { DrawingInputMode, INPUT_MODE_EVENT } from "@/lib/input-mode";
 import { CanvasView, clampView, coverPaper, IDENTITY_VIEW, MAX_SCALE, minScaleFor, pinchView, zoomView } from "@/lib/canvas-view";
@@ -1376,7 +1377,7 @@ export function DrawingStudio() {
   const textObjects = useMemo(() => activeTextObjects(documentState.ops), [documentState.ops]);
   const selectedText = useMemo(() => textObjects.find((op) => op.textObjectId === selectedTextObjectId) ?? null, [selectedTextObjectId, textObjects]);
   // 되돌리기·채우기로 더는 옮길 수 없게 된 물건은 여기서 빠지므로 선택 테두리도 함께 사라진다.
-  const selectedObject = useMemo(() => (selectedObjectKey ? movableDrawObjects(documentState.ops).find((op) => drawObjectKey(op) === selectedObjectKey) ?? null : null), [selectedObjectKey, documentState.ops]);
+  const selectedObject = useMemo(() => (selectedObjectKey ? movableDrawObjects(documentState.ops, lockedObjectKeys(documentState)).find((op) => drawObjectKey(op) === selectedObjectKey) ?? null : null), [selectedObjectKey, documentState]);
   const selectedObjectBox = useMemo(() => {
     if (!selectedObject?.points) return null;
     const resized = objectScale ? { ...selectedObject, ...scaleDrawObject(selectedObject, objectScale, documentSpan(documentState)) } : selectedObject;
@@ -1511,11 +1512,11 @@ export function DrawingStudio() {
       const box = drawObjectBounds(op, height);
       return Boolean(box && point.x >= box.x - 0.015 && point.x <= box.x + box.width + 0.015 && point.y >= box.y - 0.015 && point.y <= box.y + box.height + 0.015);
     };
-    const target = movableDrawObjects(documentStateRef.current.ops).findLast(hit);
+    const target = movableDrawObjects(documentStateRef.current.ops, lockedObjectKeys(documentStateRef.current)).findLast(hit);
     setObjectDrag(null);
     setSelectedObjectKey(target ? drawObjectKey(target) ?? null : null);
     if (target) setSaveState("골랐어요. 테두리를 끌어서 옮겨요");
-    else if (visibleDrawOperations(documentStateRef.current.ops).some((op) => (op.type === "shape" || op.type === "sticker") && hit(op))) setSaveState("색을 채우기 전에 그린 것은 옮길 수 없어요");
+    else if (visibleDrawOperations(documentStateRef.current.ops).some((op) => (op.type === "shape" || op.type === "sticker") && hit(op))) setSaveState("채운 색이 닿아 있는 것은 옮길 수 없어요");
     else setSaveState("옮길 도형이나 스티커를 눌러요");
   }
   function updateDrawObject(current: DrawOp, changes: Partial<Pick<DrawOp, "points" | "fontSize" | "deleted">>) {
@@ -3434,6 +3435,10 @@ export function DrawingStudio() {
             {/* 무지개는 섞는 색 화면으로 바로 간다(2026-09-20 사용자 결정). 단색 점과 같은 창을 열면
                 두 단추가 같은 일을 해 무엇이 무엇인지 아이가 구분할 수 없었다.
                 팔레트 밖의 색을 쓰는 동안은 눌린 상태로 두고 고른 색을 안쪽 테두리로 보여 준다. */}
+            {/* 스포이드는 색을 고르는 일이라 색 단추 옆에 둔다(2026-10-11 사용자 결정). 좁은 화면은 자리가 없어 더보기에 남는다. */}
+            <button type="button" className="dock-pipette" aria-label="스포이드, 그림에서 색 뽑기" title="스포이드" aria-pressed={studioTool === "pipette"} onClick={() => chooseStudioTool("pipette")}>
+              <span aria-hidden="true">💧</span>
+            </button>
             <button type="button" className="dock-more-colors" aria-label="색 섞어 고르기" title="색 섞어 고르기" aria-haspopup="dialog" aria-expanded={colorPickerOpen} aria-pressed={customColor} style={customColor ? { boxShadow: `inset 0 0 0 6px ${selectedColor}` } : undefined} onClick={() => { setPaletteOpen(false); setToolSheetOpen(false); setWidthSliderOpen(false); setColorPickerOpen(true); }} />
             {/* 단색 점이 여는 창에는 단색만 둔다. 섞는 색은 무지개 단추 몫이다. */}
             {paletteOpen && (
@@ -3493,7 +3498,7 @@ export function DrawingStudio() {
                     <span className="tool-icon" aria-hidden="true">{STICKER_EMOJI.star}</span>
                     <span className="tool-name" aria-hidden="true">스티커</span>
                   </button>
-                  <button type="button" aria-label="스포이드, 그림에서 색 뽑기" title="스포이드" aria-pressed={studioTool === "pipette"} onClick={() => chooseStudioTool("pipette")}>
+                  <button type="button" className="sheet-pipette" aria-label="스포이드, 그림에서 색 뽑기" title="스포이드" aria-pressed={studioTool === "pipette"} onClick={() => chooseStudioTool("pipette")}>
                     <span className="tool-icon" aria-hidden="true">💧</span>
                     <span className="tool-name" aria-hidden="true">스포이드</span>
                   </button>
