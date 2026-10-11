@@ -2,7 +2,7 @@
 
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
+import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, drawObjectBounds, drawObjectKey, movableDrawObjects, shiftDrawPoints, visibleDrawOperations, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
 import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas, STICKER_EMOJI } from "@/lib/draw-renderer";
 import { mirrorOp } from "@/lib/symmetry";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
@@ -111,7 +111,7 @@ const TEXT_KIND_OPTIONS: Array<{ kind: TextKind; icon: string; label: string; he
 type BrushTool = "pencil" | "crayon" | "marker" | "watercolor";
 type Tool = BrushTool | "eraser";
 type StrokeMeta = { tool: Tool; color: string; width: StrokeWidth };
-type StudioTool = Tool | "fill" | "shape" | "text" | "sticker" | "pipette";
+type StudioTool = Tool | "fill" | "shape" | "text" | "sticker" | "pipette" | "move";
 type StickerKind = (typeof STICKER_ALLOWLIST)[number];
 const STICKER_LABELS: Record<StickerKind, string> = { star: "별", heart: "하트", leaf: "나뭇잎", cloud: "구름", sparkle: "반짝이" };
 type PendingText = { text: string; textKind: TextKind; fontSize: TextSize; color: string };
@@ -567,6 +567,8 @@ export function DrawingStudio() {
   const [shapeKind, setShapeKind] = useState<ShapeKind>("line");
   const [shapeFilled, setShapeFilled] = useState(false);
   const [stickerKind, setStickerKind] = useState<StickerKind>("star");
+  const [selectedObjectKey, setSelectedObjectKey] = useState<string | null>(null);
+  const [objectDrag, setObjectDrag] = useState<{ dx: number; dy: number } | null>(null);
   const [moreShapes, setMoreShapes] = useState(false);
   const [textComposerOpen, setTextComposerOpen] = useState(false);
   const [textDraft, setTextDraft] = useState("");
@@ -684,6 +686,7 @@ export function DrawingStudio() {
     moved: boolean;
   } | null>(null);
   const textDragRef = useRef<{ pointerId: number; moved: boolean; startX: number; startY: number } | null>(null);
+  const objectDragRef = useRef<{ pointerId: number; moved: boolean; startX: number; startY: number } | null>(null);
   const gestureTouches = useRef(new Map<number, { x: number; y: number }>());
   const singleTouchTapRef = useRef(new Map<number, { at: number; x: number; y: number; moved: boolean }>());
   const lastSingleFingerTapRef = useRef(0);
@@ -1370,6 +1373,12 @@ export function DrawingStudio() {
   const canvasFull = useMemo(() => documentTooLarge(documentState), [documentState]);
   const textObjects = useMemo(() => activeTextObjects(documentState.ops), [documentState.ops]);
   const selectedText = useMemo(() => textObjects.find((op) => op.textObjectId === selectedTextObjectId) ?? null, [selectedTextObjectId, textObjects]);
+  // 되돌리기·채우기로 더는 옮길 수 없게 된 물건은 여기서 빠지므로 선택 테두리도 함께 사라진다.
+  const selectedObject = useMemo(() => (selectedObjectKey ? movableDrawObjects(documentState.ops).find((op) => drawObjectKey(op) === selectedObjectKey) ?? null : null), [selectedObjectKey, documentState.ops]);
+  const selectedObjectBox = useMemo(() => {
+    if (!selectedObject?.points) return null;
+    return drawObjectBounds({ ...selectedObject, points: shiftDrawPoints(selectedObject.points, objectDrag?.dx ?? 0, objectDrag?.dy ?? 0) }, documentHeight(documentState));
+  }, [selectedObject, objectDrag, documentState]);
   const reflectionDialogRef = useRef<HTMLDivElement>(null);
   // 소감을 닫으면 몽그리 짐작도 함께 접는다. 남겨 두면 다시 열었을 때
   // 지금 그림과 맞지 않는 옛 짐작이 그대로 보인다.
@@ -1491,6 +1500,57 @@ export function DrawingStudio() {
       x: roundUnit(Math.max(0.04, Math.min(0.96, (clientX - rect.left) / rect.width))),
       y: roundUnit(Math.max(0.04, Math.min(0.96, (clientY - rect.top) / rect.height))),
     };
+  }
+  // 옮기기 도구로 도화지를 누르면 그 자리의 맨 위 도형·스티커를 고른다. 손끝 오차만큼 상자를 넓혀 잡는다.
+  function selectObjectAt(point: { x: number; y: number }) {
+    const height = documentHeight(documentStateRef.current);
+    const hit = (op: DrawOp) => {
+      const box = drawObjectBounds(op, height);
+      return Boolean(box && point.x >= box.x - 0.015 && point.x <= box.x + box.width + 0.015 && point.y >= box.y - 0.015 && point.y <= box.y + box.height + 0.015);
+    };
+    const target = movableDrawObjects(documentStateRef.current.ops).findLast(hit);
+    setObjectDrag(null);
+    setSelectedObjectKey(target ? drawObjectKey(target) ?? null : null);
+    if (target) setSaveState("골랐어요. 테두리를 끌어서 옮겨요");
+    else if (visibleDrawOperations(documentStateRef.current.ops).some((op) => (op.type === "shape" || op.type === "sticker") && hit(op))) setSaveState("색을 채우기 전에 그린 것은 옮길 수 없어요");
+    else setSaveState("옮길 도형이나 스티커를 눌러요");
+  }
+  function updateDrawObject(current: DrawOp, changes: Partial<Pick<DrawOp, "points" | "deleted">>) {
+    const key = current.objectId ?? current.opId;
+    const operationId = newOperationId();
+    return commitOps([{ ...current, ...changes, objectId: key, opId: `op_${operationId}`, clientOpId: `client_${operationId}`, at: new Date().toISOString() }]);
+  }
+  function objectDragDelta(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = objectDragRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!drag || !rect) return null;
+    return { dx: (event.clientX - drag.startX) / rect.width, dy: (event.clientY - drag.startY) / rect.height };
+  }
+  function startObjectDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!selectedObject || conflictDraftRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    objectDragRef.current = { pointerId: event.pointerId, moved: false, startX: event.clientX, startY: event.clientY };
+  }
+  function moveObjectDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = objectDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= 5) drag.moved = true;
+    if (drag.moved) setObjectDrag(objectDragDelta(event));
+  }
+  function finishObjectDrag(event: ReactPointerEvent<HTMLButtonElement>, commit: boolean) {
+    const drag = objectDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const delta = objectDragDelta(event);
+    objectDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setObjectDrag(null);
+    if (commit && drag.moved && delta && selectedObject?.points && updateDrawObject(selectedObject, { points: shiftDrawPoints(selectedObject.points, delta.dx, delta.dy) })) setSaveState("옮겼어요");
   }
   function startTextDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!selectedText || conflictDraftRef.current) return;
@@ -1618,6 +1678,10 @@ export function DrawingStudio() {
     if (next !== "eraser") hideEraserFootprint();
     if (next === "pencil" || next === "crayon" || next === "marker" || next === "watercolor") lastBrushRef.current = next;
     if (next !== "shape") clearShapeStart();
+    if (next !== "move") {
+      setSelectedObjectKey(null);
+      setObjectDrag(null);
+    }
     if (next !== "text") {
       setPendingText(null);
       setSelectedTextObjectId(null);
@@ -2092,6 +2156,10 @@ export function DrawingStudio() {
         setSelectedTextObjectId(nearest.textObjectId);
         setSaveState("글씨를 골랐어요. 테두리를 끌어서 옮기거나 아래에서 고쳐요");
       } else openTextComposer();
+      return;
+    }
+    if (studioTool === "move") {
+      selectObjectAt(first);
       return;
     }
     if (studioTool === "eraser") updateEraserFootprint(event, true);
@@ -3195,6 +3263,39 @@ export function DrawingStudio() {
                   <span>✥ 끌어서 옮겨요</span>
                 </button>
               )}
+              {studioTool === "move" && selectedObject && selectedObjectBox && (
+                <>
+                  <button
+                    type="button"
+                    className="text-object-selection"
+                    aria-label={`${selectedObject.type === "sticker" ? "스티커" : "도형"}. 끌어서 옮기기`}
+                    style={{
+                      left: `${(selectedObjectBox.x + selectedObjectBox.width / 2) * 100}%`,
+                      top: `${(selectedObjectBox.y + selectedObjectBox.height / 2) * 100}%`,
+                      width: `${selectedObjectBox.width * 100}%`,
+                      height: `${selectedObjectBox.height * 100}%`,
+                    }}
+                    onPointerDown={startObjectDrag}
+                    onPointerMove={moveObjectDrag}
+                    onPointerUp={(event) => finishObjectDrag(event, true)}
+                    onPointerCancel={(event) => finishObjectDrag(event, false)}
+                  >
+                    <span>✥ 끌어서 옮겨요</span>
+                  </button>
+                  {!objectDrag && (
+                    <button
+                      type="button"
+                      className="object-delete"
+                      aria-label="고른 것 지우기"
+                      title="지우기"
+                      style={{ left: `${Math.min(0.97, selectedObjectBox.x + selectedObjectBox.width) * 100}%`, top: `${Math.max(0.03, selectedObjectBox.y) * 100}%` }}
+                      onClick={() => { if (updateDrawObject(selectedObject, { deleted: true })) setSaveState("지웠어요. 되돌리기로 다시 가져올 수 있어요"); }}
+                    >
+                      <Trash2Icon />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
             {/* 확대·축소(2026-09-15 사용자 요청). 가운데 숫자를 누르면 화면 맞춤으로 돌아간다.
                 두 손가락 벌리기·트랙패드도 같은 배율을 쓴다. */}
@@ -3330,6 +3431,10 @@ export function DrawingStudio() {
                   >
                     <span className="tool-icon text-tool-icon" aria-hidden="true">Aa</span>
                     <span className="tool-name" aria-hidden="true">글씨</span>
+                  </button>
+                  <button type="button" aria-label="옮기기, 도형과 스티커 옮기기" title="옮기기" aria-pressed={studioTool === "move"} onClick={() => chooseStudioTool("move")}>
+                    <span className="tool-icon text-tool-icon" aria-hidden="true">✥</span>
+                    <span className="tool-name" aria-hidden="true">옮기기</span>
                   </button>
                   <button type="button" aria-label="스티커" title="스티커" aria-pressed={studioTool === "sticker"} onClick={() => chooseStudioTool("sticker")}>
                     <span className="tool-icon" aria-hidden="true">{STICKER_EMOJI.star}</span>
