@@ -77,8 +77,12 @@ export const STICKER_ALLOWLIST = ["star", "heart", "leaf", "cloud", "sparkle"] a
 /* 스티커 크기도 굵기·글자와 같은 도화지 단위다. 넓은 도화지(span)에서는 STICKER_SIZE를 span으로 나눈 값을
  * `fontSize`에 담는다(렌더러가 스티커를 글자로 그린다). 값이 없으면 예전처럼 140이다. */
 export const STICKER_SIZE = 140;
+/* 아이가 바꿀 수 있는 스티커 크기(화면 기준 픽셀). 넓은 도화지에서는 저장 값이 span으로 나뉘므로
+ * 서버가 받는 범위는 가장 넓은 도화지의 최소부터 좁은 도화지의 최대까지다. */
+export const STICKER_SCREEN_MIN = 60;
+export const STICKER_SCREEN_MAX = 360;
 export const isStickerSize = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= STICKER_SIZE / DOCUMENT_SPANS[DOCUMENT_SPANS.length - 1] - 0.01 && value <= STICKER_SIZE;
+  typeof value === "number" && Number.isFinite(value) && value >= STICKER_SCREEN_MIN / DOCUMENT_SPANS[DOCUMENT_SPANS.length - 1] - 0.01 && value <= STICKER_SCREEN_MAX;
 // 서버 validator와 클라이언트가 같은 목록을 봐야 한다. 클라이언트만 넓히면
 // 새 도구로 그린 문서가 서버에서 거부돼 저장이 영구 실패한다.
 // "pen"은 필압 렌더 도입 전의 기존 획이다. 기존 작품에는 실필압(0.5가 아닌 값)이 이미 기록돼
@@ -316,6 +320,28 @@ export function movableDrawObjects(ops: readonly DrawOp[]) {
     if (key && !firstIndex.has(key)) firstIndex.set(key, index);
   });
   return visibleDrawOperations(ops).filter((op) => (op.type === "shape" || op.type === "sticker") && (firstIndex.get(drawObjectKey(op) ?? "") ?? -1) > lastFill);
+}
+
+// 이보다 작게 줄이면 다시 누르기 어렵다(도형 그리기가 받는 최소 길이 0.012보다 넉넉하게).
+const SHAPE_MIN_SPAN = 0.03;
+/** 물건을 가운데 기준으로 factor배 한 상태. 스티커는 크기(fontSize)가, 도형은 두 점이 바뀐다 — 선 굵기는 그대로다.
+ *  도화지 밖으로 나가거나 너무 작아지지 않는 만큼만 바뀐다. */
+export function scaleDrawObject(op: DrawOp, factor: number, span: number): Pick<DrawOp, "points" | "fontSize"> {
+  if (!Number.isFinite(factor) || factor <= 0) return {};
+  if (op.type === "sticker") {
+    const size = (op.fontSize ?? STICKER_SIZE) * factor;
+    return { fontSize: Math.max(toDocumentUnits(STICKER_SCREEN_MIN, span), Math.min(toDocumentUnits(STICKER_SCREEN_MAX, span), Math.round(size * 100) / 100)) };
+  }
+  const [a, b] = op.points ?? [];
+  if (op.type !== "shape" || !a || !b) return {};
+  const centerX = (a.x + b.x) / 2, centerY = (a.y + b.y) / 2;
+  const halfX = Math.abs(a.x - b.x) / 2, halfY = Math.abs(a.y - b.y) / 2;
+  const length = Math.hypot(a.x - b.x, a.y - b.y);
+  const most = Math.min(halfX ? Math.min(centerX, 1 - centerX) / halfX : Infinity, halfY ? Math.min(centerY, 1 - centerY) / halfY : Infinity);
+  const least = length > SHAPE_MIN_SPAN ? SHAPE_MIN_SPAN / length : 1;
+  const applied = Math.max(least, Math.min(most, factor));
+  const scaled = (point: Point) => ({ ...point, x: roundUnit(Math.max(0, Math.min(1, centerX + (point.x - centerX) * applied))), y: roundUnit(Math.max(0, Math.min(1, centerY + (point.y - centerY) * applied))) });
+  return { points: [scaled(a), scaled(b)] };
 }
 
 /** 물건을 (dx, dy)만큼 옮긴 점들. 점이 도화지 밖으로 나가지 않는 만큼만 움직인다. */

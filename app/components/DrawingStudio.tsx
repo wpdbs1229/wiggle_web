@@ -2,7 +2,7 @@
 
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, drawObjectBounds, drawObjectKey, movableDrawObjects, shiftDrawPoints, visibleDrawOperations, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
+import { activeTextObjects, clampDocumentHeight, contentBounds, DOCUMENT_SIZE, documentHeight, documentSpan, DrawDocument, DrawOp, drawingTextGraphemes, drawObjectBounds, drawObjectKey, movableDrawObjects, scaleDrawObject, shiftDrawPoints, visibleDrawOperations, emptyDocument, estimateDocumentBytes, estimateStrokeBytes, growDrawOps, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_OPS, MAX_STROKE_POINTS, strokePointGap, MAX_TEXT_GRAPHEMES, MAX_TEXT_OBJECTS, NEW_DOCUMENT_SPAN, normalizeDrawingText, roundUnit, ShapeKind, STICKER_ALLOWLIST, STICKER_SIZE, STROKE_WIDTH_SCREEN_MAX, STROKE_WIDTH_MIN, StrokeWidth, TextKind, TEXT_SIZES, TextSize, toDocumentUnits, toScreenUnits, validateDrawDocument } from "@/lib/drawing-model";
 import { renderDrawDocument, renderDrawOperation, resetDrawingCanvas, STICKER_EMOJI } from "@/lib/draw-renderer";
 import { mirrorOp } from "@/lib/symmetry";
 import { clearAllDrawing, redoDrawing, undoDrawing } from "@/lib/drawing-history";
@@ -569,6 +569,7 @@ export function DrawingStudio() {
   const [stickerKind, setStickerKind] = useState<StickerKind>("star");
   const [selectedObjectKey, setSelectedObjectKey] = useState<string | null>(null);
   const [objectDrag, setObjectDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const [objectScale, setObjectScale] = useState<number | null>(null);
   const [moreShapes, setMoreShapes] = useState(false);
   const [textComposerOpen, setTextComposerOpen] = useState(false);
   const [textDraft, setTextDraft] = useState("");
@@ -687,6 +688,7 @@ export function DrawingStudio() {
   } | null>(null);
   const textDragRef = useRef<{ pointerId: number; moved: boolean; startX: number; startY: number } | null>(null);
   const objectDragRef = useRef<{ pointerId: number; moved: boolean; startX: number; startY: number } | null>(null);
+  const objectResizeRef = useRef<{ pointerId: number; centerX: number; centerY: number; startDistance: number } | null>(null);
   const gestureTouches = useRef(new Map<number, { x: number; y: number }>());
   const singleTouchTapRef = useRef(new Map<number, { at: number; x: number; y: number; moved: boolean }>());
   const lastSingleFingerTapRef = useRef(0);
@@ -1377,8 +1379,9 @@ export function DrawingStudio() {
   const selectedObject = useMemo(() => (selectedObjectKey ? movableDrawObjects(documentState.ops).find((op) => drawObjectKey(op) === selectedObjectKey) ?? null : null), [selectedObjectKey, documentState.ops]);
   const selectedObjectBox = useMemo(() => {
     if (!selectedObject?.points) return null;
-    return drawObjectBounds({ ...selectedObject, points: shiftDrawPoints(selectedObject.points, objectDrag?.dx ?? 0, objectDrag?.dy ?? 0) }, documentHeight(documentState));
-  }, [selectedObject, objectDrag, documentState]);
+    const resized = objectScale ? { ...selectedObject, ...scaleDrawObject(selectedObject, objectScale, documentSpan(documentState)) } : selectedObject;
+    return drawObjectBounds({ ...resized, points: shiftDrawPoints(resized.points ?? selectedObject.points, objectDrag?.dx ?? 0, objectDrag?.dy ?? 0) }, documentHeight(documentState));
+  }, [selectedObject, objectDrag, objectScale, documentState]);
   const reflectionDialogRef = useRef<HTMLDivElement>(null);
   // 소감을 닫으면 몽그리 짐작도 함께 접는다. 남겨 두면 다시 열었을 때
   // 지금 그림과 맞지 않는 옛 짐작이 그대로 보인다.
@@ -1515,7 +1518,7 @@ export function DrawingStudio() {
     else if (visibleDrawOperations(documentStateRef.current.ops).some((op) => (op.type === "shape" || op.type === "sticker") && hit(op))) setSaveState("색을 채우기 전에 그린 것은 옮길 수 없어요");
     else setSaveState("옮길 도형이나 스티커를 눌러요");
   }
-  function updateDrawObject(current: DrawOp, changes: Partial<Pick<DrawOp, "points" | "deleted">>) {
+  function updateDrawObject(current: DrawOp, changes: Partial<Pick<DrawOp, "points" | "fontSize" | "deleted">>) {
     const key = current.objectId ?? current.opId;
     const operationId = newOperationId();
     return commitOps([{ ...current, ...changes, objectId: key, opId: `op_${operationId}`, clientOpId: `client_${operationId}`, at: new Date().toISOString() }]);
@@ -1551,6 +1554,40 @@ export function DrawingStudio() {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     setObjectDrag(null);
     if (commit && drag.moved && delta && selectedObject?.points && updateDrawObject(selectedObject, { points: shiftDrawPoints(selectedObject.points, delta.dx, delta.dy) })) setSaveState("옮겼어요");
+  }
+  // 크기 손잡이: 물건 가운데에서 손끝까지의 거리가 처음의 몇 배가 됐는지가 곧 배율이다.
+  function objectResizeFactor(event: ReactPointerEvent<HTMLButtonElement>) {
+    const resize = objectResizeRef.current;
+    return resize ? Math.hypot(event.clientX - resize.centerX, event.clientY - resize.centerY) / resize.startDistance : null;
+  }
+  function startObjectResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!selectedObject || !selectedObjectBox || !rect || conflictDraftRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const centerX = rect.left + (selectedObjectBox.x + selectedObjectBox.width / 2) * rect.width;
+    const centerY = rect.top + (selectedObjectBox.y + selectedObjectBox.height / 2) * rect.height;
+    const startDistance = Math.hypot(event.clientX - centerX, event.clientY - centerY);
+    if (startDistance < 1) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    objectResizeRef.current = { pointerId: event.pointerId, centerX, centerY, startDistance };
+  }
+  function moveObjectResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (objectResizeRef.current?.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setObjectScale(objectResizeFactor(event));
+  }
+  function finishObjectResize(event: ReactPointerEvent<HTMLButtonElement>, commit: boolean) {
+    if (objectResizeRef.current?.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const factor = objectResizeFactor(event);
+    objectResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setObjectScale(null);
+    if (!commit || !factor || !selectedObject || Math.abs(factor - 1) < 0.03) return;
+    if (updateDrawObject(selectedObject, scaleDrawObject(selectedObject, factor, documentSpan(documentStateRef.current)))) setSaveState("크기를 바꿨어요");
   }
   function startTextDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!selectedText || conflictDraftRef.current) return;
@@ -1681,6 +1718,7 @@ export function DrawingStudio() {
     if (next !== "move") {
       setSelectedObjectKey(null);
       setObjectDrag(null);
+      setObjectScale(null);
     }
     if (next !== "text") {
       setPendingText(null);
@@ -3283,6 +3321,21 @@ export function DrawingStudio() {
                     <span>✥ 끌어서 옮겨요</span>
                   </button>
                   {!objectDrag && (
+                    <button
+                      type="button"
+                      className="object-delete object-resize"
+                      aria-label="끌어서 크기 바꾸기"
+                      title="크기 바꾸기"
+                      style={{ left: `${Math.min(0.97, selectedObjectBox.x + selectedObjectBox.width) * 100}%`, top: `${Math.min(0.97, selectedObjectBox.y + selectedObjectBox.height) * 100}%` }}
+                      onPointerDown={startObjectResize}
+                      onPointerMove={moveObjectResize}
+                      onPointerUp={(event) => finishObjectResize(event, true)}
+                      onPointerCancel={(event) => finishObjectResize(event, false)}
+                    >
+                      <span aria-hidden="true">⤡</span>
+                    </button>
+                  )}
+                  {!objectDrag && !objectScale && (
                     <button
                       type="button"
                       className="object-delete"

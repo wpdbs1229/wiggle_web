@@ -15,7 +15,7 @@ test("stickers keep the same on-screen size on wide paper and stay loadable with
   // 크기 없는 옛 문서는 그대로 열린다(렌더러가 140으로 그린다).
   assert.equal(validateDrawDocument(documentWith(sticker()))?.ops[0].fontSize, undefined);
   // 허용 범위 밖 크기와 숫자가 아닌 값은 저장을 거부한다.
-  for (const bad of [0, 10, 141, 5000, "140", null]) assert.equal(validateDrawDocument(documentWith(sticker({ fontSize: bad }))), null, String(bad));
+  for (const bad of [0, 10, 361, 5000, "140", null]) assert.equal(validateDrawDocument(documentWith(sticker({ fontSize: bad }))), null, String(bad));
   // 스티커의 다른 종류 필드는 남지 않는다.
   assert.equal(validateDrawDocument(documentWith(sticker({ color: "#FF0000", text: "x" })))?.ops[0].color, undefined);
 });

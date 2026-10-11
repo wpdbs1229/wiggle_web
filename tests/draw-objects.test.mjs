@@ -65,3 +65,28 @@ test("the server keeps move and delete records for shapes and stickers, and reje
   // 획에 실린 objectId는 남지 않는다.
   assert.equal(validateDrawDocument(documentWith([{ ...stroke("line"), objectId: circle.opId }]))?.ops[0].objectId, undefined);
 });
+
+test("resizing keeps the centre, the paper edge, and a size a finger can still hit", async () => {
+  const { scaleDrawObject, STICKER_SCREEN_MAX, STICKER_SCREEN_MIN, toDocumentUnits } = await import("../lib/drawing-model.ts");
+  // 도형: 가운데는 그대로, 두 점이 배율만큼 벌어진다.
+  assert.deepEqual(scaleDrawObject(shape("circle", 0.4), 1.5, 3).points, [{ x: 0.35, y: 0.15 }, { x: 0.65, y: 0.45 }]);
+  // 도화지 가장자리에 닿으면 거기서 멈춘다(위쪽 0.2가 먼저 닿는다 — 가운데 y 0.3, 반높이 0.1 → 최대 3배).
+  const huge = scaleDrawObject(shape("circle", 0.4), 50, 3).points;
+  assert.ok(huge.every((point) => point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1));
+  assert.equal(huge[0].y, 0);
+  // 아주 작게 줄여도 다시 누를 수 있는 크기는 남는다.
+  const tiny = scaleDrawObject(shape("circle", 0.4), 0.0001, 3).points;
+  assert.ok(Math.hypot(tiny[0].x - tiny[1].x, tiny[0].y - tiny[1].y) >= 0.029);
+  // 스티커: 화면 기준 범위 안에서만 바뀌고, 그 값은 서버 검증을 통과한다.
+  for (const span of [1, 2, 3]) {
+    const start = sticker("heart", { fontSize: toDocumentUnits(140, span) });
+    // 저장 값은 소수 둘째 자리로 반올림돼 있어 두 배가 0.01만큼 어긋날 수 있다.
+    assert.ok(Math.abs(scaleDrawObject(start, 2, span).fontSize - toDocumentUnits(280, span)) <= 0.011);
+    for (const factor of [0.001, 1000]) {
+      const size = scaleDrawObject(start, factor, span).fontSize;
+      assert.equal(size, toDocumentUnits(factor < 1 ? STICKER_SCREEN_MIN : STICKER_SCREEN_MAX, span));
+      assert.ok(validateDrawDocument({ ...documentWith([{ ...start, fontSize: size }]), span }), `span ${span} size ${size}`);
+    }
+  }
+  assert.deepEqual(scaleDrawObject(shape("circle"), Number.NaN, 1), {});
+});
